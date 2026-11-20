@@ -1,0 +1,157 @@
+package protocol
+
+import (
+	"crypto"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/overte-org/overte-ice-server/internal/qtstream"
+	"github.com/overte-org/overte-ice-server/internal/registry"
+)
+
+type Socket struct {
+	Display string
+	Raw     []byte
+}
+type Heartbeat struct {
+	DomainID      string
+	Public, Local Socket
+	Signed        []byte
+	Signature     []byte
+}
+type Query struct {
+	SenderID      string
+	Public, Local Socket
+	TargetID      string
+}
+type Peer struct {
+	ID            string
+	Public, Local Socket
+	Observed      string
+	LastSeen      time.Time
+}
+
+func ParseHeartbeat(payload []byte) (Heartbeat, error) {
+	r := qtstream.Reader{B: payload}
+	id, _, e := r.UUID()
+	if e != nil {
+		return Heartbeat{}, e
+	}
+	pub, praw, e := r.Socket()
+	if e != nil {
+		return Heartbeat{}, e
+	}
+	local, lraw, e := r.Socket()
+	if e != nil {
+		return Heartbeat{}, e
+	}
+	signedEnd := r.Off
+	sig, e := r.QByteArray()
+	if e != nil {
+		return Heartbeat{}, e
+	}
+	if r.Off != len(payload) {
+		return Heartbeat{}, errors.New("unexpected trailing bytes in heartbeat")
+	}
+	return Heartbeat{DomainID: id, Public: Socket{pub, praw}, Local: Socket{local, lraw}, Signed: append([]byte(nil), payload[:signedEnd]...), Signature: sig}, nil
+}
+func ParseQuery(payload []byte) (Query, error) {
+	r := qtstream.Reader{B: payload}
+	id, _, e := r.UUID()
+	if e != nil {
+		return Query{}, e
+	}
+	pub, praw, e := r.Socket()
+	if e != nil {
+		return Query{}, e
+	}
+	local, lraw, e := r.Socket()
+	if e != nil {
+		return Query{}, e
+	}
+	target, _, e := r.UUID()
+	if e != nil {
+		return Query{}, e
+	}
+	if r.Off != len(payload) {
+		return Query{}, errors.New("unexpected trailing bytes in ICE query")
+	}
+	return Query{SenderID: id, Public: Socket{pub, praw}, Local: Socket{local, lraw}, TargetID: target}, nil
+}
+func PeerPayload(p Peer) ([]byte, error) {
+	id, e := qtstream.UUIDBytes(p.ID)
+	if e != nil {
+		return nil, e
+	}
+	if len(p.Public.Raw) == 0 || len(p.Local.Raw) == 0 {
+		return nil, errors.New("peer socket serialization missing")
+	}
+	out := make([]byte, 0, 16+len(p.Public.Raw)+len(p.Local.Raw))
+	out = append(out, id...)
+	out = append(out, p.Public.Raw...)
+	out = append(out, p.Local.Raw...)
+	return out, nil
+}
+
+type publicKeyResponse struct {
+	Status string `json:"status"`
+	Data   struct {
+		PublicKey string `json:"public_key"`
+	} `json:"data"`
+}
+
+func FetchPublicKey(client *http.Client, dir registry.Directory, domainID string) (*rsa.PublicKey, error) {
+	base, e := url.Parse(dir.BaseURL)
+	if e != nil {
+		return nil, e
+	}
+	base.Path = strings.TrimRight(base.Path, "/") + "/api/v1/domains/" + domainID + "/public_key"
+	req, e := http.NewRequest(http.MethodGet, base.String(), nil)
+	if e != nil {
+		return nil, e
+	}
+	resp, e := client.Do(req)
+	if e != nil {
+		return nil, e
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("directory returned HTTP %d", resp.StatusCode)
+	}
+	var body publicKeyResponse
+	if e = json.NewDecoder(resp.Body).Decode(&body); e != nil {
+		return nil, e
+	}
+	if body.Status != "success" || body.Data.PublicKey == "" {
+		return nil, errors.New("directory response did not contain data.public_key")
+	}
+	der, e := base64.StdEncoding.DecodeString(body.Data.PublicKey)
+	if e != nil {
+		return nil, e
+	}
+	if key, e := x509.ParsePKIXPublicKey(der); e == nil {
+		if rsaKey, ok := key.(*rsa.PublicKey); ok {
+			return rsaKey, nil
+		}
+	}
+	if key, e := x509.ParsePKCS1PublicKey(der); e == nil {
+		return key, nil
+	}
+	return nil, errors.New("public_key is not a supported RSA DER public key")
+}
+func VerifyHeartbeat(key *rsa.PublicKey, signed, signature []byte) error {
+	if key == nil {
+		return errors.New("public key unavailable")
+	}
+	digest := sha256.Sum256(signed)
+	return rsa.VerifyPKCS1v15(key, crypto.SHA256, digest[:], signature)
+}

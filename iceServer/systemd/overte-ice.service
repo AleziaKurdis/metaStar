@@ -1,0 +1,23 @@
+[Unit]
+Description=Overte ICE Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=overte-ice
+Group=overte-ice
+ExecStart=/usr/local/bin/overte-ice-server --config /etc/overte-ice/config.json
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/overte-ice
+CapabilityBoundingSet=
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target

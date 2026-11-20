@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>My account · Overte</title>
+    <link rel="stylesheet" href="account.css">
+</head>
+<body>
+    <header class="topbar">
+        <a class="brand" href="./"><span class="brand-mark">O</span><span><strong>OVERTE</strong><small>DIRECTORY SERVER</small></span></a>
+        <div class="user-actions"><span id="signed-in-as">My account</span><button id="sign-out" type="button">Sign out</button></div>
+    </header>
+    <main class="page">
+        <section class="welcome">
+            <div class="eyebrow">ACCOUNT DASHBOARD</div>
+            <h1>Welcome, <span id="username">Overte user</span></h1>
+            <p>Manage your account, domains and places.</p>
+        </section>
+        <div id="status" class="status" role="status" aria-live="polite">Loading your account…</div>
+        <section class="panel">
+            <div class="panel-heading"><div><h2>Account information</h2><p>Your directory-server account</p></div></div>
+            <dl class="details"><div><dt>Username</dt><dd id="account-username">—</dd></div><div><dt>Account ID</dt><dd id="account-id">—</dd></div></dl>
+        </section>
+        <section class="panel">
+            <div class="panel-heading"><div><h2>My domains</h2><p>Domains registered automatically by your domain servers</p></div><button id="refresh-domains" class="secondary-button" type="button">Refresh</button></div>
+            <p class="section-note">A domain appears here when its Domain Server registers with this directory using one of your domain access tokens. You do not create the domain entry here.</p>
+            <div id="domains" class="domains"><p class="muted">Loading domains…</p></div>
+        </section>
+        <section class="panel">
+            <div class="panel-heading"><div><h2>Domain access tokens</h2><p>Generate a token to connect a Domain Server to this directory.</p></div></div>
+            <ol class="setup-steps"><li>Generate a domain access token and copy it.</li><li>Paste it into your Domain Server setup wizard when asked to connect your Metaverse account.</li><li>Complete the setup and create the domain ID in Domain Server settings. The server will register the domain here automatically.</li></ol>
+            <p class="section-note">A domain token can manage all domains sponsored by this account. Keep it secret; revoke it if it is exposed.</p>
+            <div class="token-actions"><button id="generate-domain-token" type="button">Generate domain access token</button></div>
+            <div id="new-token" class="new-token" hidden>
+                <p><strong>Copy this token now.</strong> It is a secret. Anyone who has it can act as your domain server for domains sponsored by your account.</p>
+                <div class="token-value"><code id="new-token-value"></code><button id="copy-token" type="button">Copy</button></div>
+                <p id="token-copy-message" class="inline-message" role="status" aria-live="polite"></p>
+            </div>
+            <div id="domain-tokens" class="domain-tokens"><p class="muted">Loading access tokens…</p></div>
+            <p id="token-management-message" class="inline-message" role="status" aria-live="polite" hidden></p>
+        </section>
+        <section class="panel">
+            <div class="panel-heading"><div><h2>My places</h2><p>Places hosted by domains sponsored by your account</p></div></div>
+            <div id="places" class="places"><p class="muted">Loading places…</p></div>
+        </section>
+        <p class="admin-link" id="admin-link" hidden><a href="../dashboard/">Open server administration</a></p>
+        <footer>Overte Directory Server · Account dashboard</footer>
+    </main>
+    <script src="account.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+Overte ICE protocol compatibility work
+
+This project implements protocol behavior based on the Overte source tree supplied for this work. Relevant upstream source files include the Overte ICE server and networking library (UDT packet handling, NLPacket, NetworkPeer, SockAddr, and DomainServer heartbeat/query code).
+
+The upstream source carries copyright notices for High Fidelity, Vircadia contributors, and Overte e.V. and is distributed under the Apache License, Version 2.0. This Go implementation is a separate implementation of the protocol behavior; it is not an official Overte release.

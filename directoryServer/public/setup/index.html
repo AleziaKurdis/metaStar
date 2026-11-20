@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Initial administrator setup</title>
+    <link rel="stylesheet" href="setup.css">
+</head>
+<body>
+    <main class="setup-card">
+        <div class="eyebrow">OVERTE DIRECTORY SERVER</div>
+        <h1>Initial administrator setup</h1>
+        <p class="intro">Create the first administrator account for this server. This page is available only while no accounts exist.</p>
+        <div id="status" class="message" role="status" aria-live="polite">Checking setup status…</div>
+        <form id="setup-form" hidden>
+            <label>Administrator username</label>
+            <input id="username" type="text" readonly>
+            <label for="email">Email address</label>
+            <input id="email" type="email" autocomplete="email" required>
+            <label for="setup-key">One-time setup key</label>
+            <input id="setup-key" type="password" autocomplete="off" required>
+            <label for="password">Choose a password</label>
+            <input id="password" type="password" autocomplete="new-password" minlength="12" required>
+            <label for="password-confirm">Confirm password</label>
+            <input id="password-confirm" type="password" autocomplete="new-password" minlength="12" required>
+            <button id="submit" type="submit">Create administrator account</button>
+        </form>
+        <p class="footnote">Use HTTPS. The setup key is configured privately in <code>config/local.php</code> and is not your account password.</p>
+    </main>
+    <script src="setup.js"></script>
+</body>
+</html>

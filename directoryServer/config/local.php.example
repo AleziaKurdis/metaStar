@@ -1,0 +1,39 @@
+<?php
+return [
+    'metaverse_name' => 'My Overte Metaverse',
+    'metaverse_nick_name' => 'My Metaverse',
+    'metaverse_server_url' => 'https://metaverse.example.com',
+    'default_ice_server_url' => 'https://ice.example.com',
+    'storage_path' => dirname(__DIR__) . '/data',
+    'base_admin_account' => 'admin',
+    // Generate with: php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"
+    'initial_admin_setup_key' => 'REPLACE_WITH_A_RANDOM_64_CHARACTER_SECRET',
+    'allow_temp_domain_creation' => false,
+    'heartbeat_seconds_until_offline' => 300,
+    'handshake_request_expiration_minutes' => 1,
+    'relationship_request_expiration_days' => 14,
+    'email_enabled' => true,
+    'email_from' => 'noreply@example.com',
+    'email_from_name' => 'My Overte Metaverse',
+    'email_verification_enabled' => false,
+    'email_verification_timeout_minutes' => 1440,
+    'email_verification_success_redirect' => '',
+    'email_verification_failure_redirect' => '',
+    'password_reset_timeout_minutes' => 60,
+    'email_resend_cooldown_seconds' => 60,
+    'password_reset_url' => 'https://example.com/password-reset',
+    'session_timeout_minutes' => 5,
+    'domain_seconds_until_offline' => 600,
+    'domain_seconds_check_if_online' => 120,
+    'place_current_timeout_minutes' => 5,
+    'place_check_last_activity_seconds' => 175,
+    'cors_origins' => ['*'],
+    // Application diagnostics. The default log is storage_path/logs/overte-debug.log.
+    // Diagnostics are disabled by default. Enable temporarily in config/local.php when troubleshooting.
+    // Never log credentials or deploy with diagnostic logging enabled longer than necessary.
+    'debug' => [
+        'enabled' => false,
+        'auth_logging' => false,
+        'log_file' => ''
+    ]
+];
