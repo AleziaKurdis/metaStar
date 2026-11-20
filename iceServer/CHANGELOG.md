@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2-dev
+
+- Added source-derived Qt QHostAddress/SockAddr wire fixtures for IPv4 and scoped IPv6.
+- Decode Qt QString values as UTF-16, including surrogate pairs, for IPv6 scope IDs.
+- Documented the exact QHostAddress and SockAddr QDataStream field order and byte order.
+
 ## 0.3.1-dev
 
 - Corrected all five Go ICE packet type identifiers to the zero-based values in Overte's `PacketTypeEnum::Value`.
