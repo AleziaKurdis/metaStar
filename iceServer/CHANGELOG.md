@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.3-dev
+
+- Added two-peer UDP exchange coverage for both directions of ICE peer-information delivery.
+- Verified that a changed NAT source endpoint learned from a newer valid heartbeat becomes the destination for reverse peer-information delivery.
+- Documented the Go observed-address behavior against the original C++ active-socket selection.
+
+
 ## 0.3.2-dev
 
 - Added source-derived Qt QHostAddress/SockAddr wire fixtures for IPv4 and scoped IPv6.
