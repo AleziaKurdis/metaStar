@@ -27,6 +27,12 @@ func TestOvertePacketTypeIdentifiers(t *testing.T) {
 			}
 		})
 	}
+	if VersionICEStandard != 17 {
+		t.Fatalf("standard ICE packet version = %d, want 17", VersionICEStandard)
+	}
+	if VersionICEHeartbeat != 18 {
+		t.Fatalf("heartbeat packet version = %d, want 18", VersionICEHeartbeat)
+	}
 }
 
 func TestHeartbeatDatagramMatchesOverteWireLayout(t *testing.T) {
