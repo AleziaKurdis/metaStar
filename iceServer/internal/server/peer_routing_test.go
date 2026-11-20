@@ -5,14 +5,14 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
-	"encoding/base64"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
-	"crypto/x509"
 	"testing"
 	"time"
 
@@ -32,7 +32,7 @@ func TestPeerInformationUsesCurrentObservedSocket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	publicDER, err := x509MarshalPublicKey(&privateKey.PublicKey)
+	publicDER, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,6 +147,8 @@ func TestPeerInformationUsesCurrentObservedSocket(t *testing.T) {
 	buf := make([]byte, 2048)
 	if _, _, err := oldEndpoint.ReadFromUDP(buf); err == nil {
 		t.Fatal("peer information was incorrectly sent to the superseded NAT endpoint")
+	} else if netErr, ok := err.(net.Error); !ok || !netErr.Timeout() {
+		t.Fatalf("unexpected error while checking superseded NAT endpoint: %v", err)
 	}
 }
 
@@ -207,6 +209,3 @@ func peerPayload(id string, publicSocket, localSocket []byte) ([]byte, error) {
 	return out, nil
 }
 
-func x509MarshalPublicKey(key *rsa.PublicKey) ([]byte, error) {
-	return x509.MarshalPKIXPublicKey(key)
-}
