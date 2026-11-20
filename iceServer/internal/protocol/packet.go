@@ -6,18 +6,22 @@ import (
 )
 
 const (
-	PacketICEServerPeerInformation byte   = 23
-	PacketICEServerQuery           byte   = 24
-	PacketICEServerHeartbeat       byte   = 39
-	PacketICEServerHeartbeatDenied byte   = 61
-	PacketICEServerHeartbeatACK    byte   = 64
-	VersionICEStandard             byte   = 17
-	VersionICEHeartbeat            byte   = 18
-	udtControlBit                  uint32 = 1 << 31
-	udtReliableBit                 uint32 = 1 << 30
-	udtMessageBit                  uint32 = 1 << 29
-	udtObfuscationMask             uint32 = 3 << 27
-	udtSequenceMask                uint32 = (1 << 27) - 1
+	// Packet type identifiers are the numeric values of PacketTypeEnum::Value
+	// in Overte's libraries/networking/src/udt/PacketHeaders.h.
+	PacketICEServerPeerInformation byte = 22
+	PacketICEServerQuery           byte = 23
+	PacketICEServerHeartbeat       byte = 38
+	PacketICEServerHeartbeatDenied byte = 60
+	PacketICEServerHeartbeatACK    byte = 63
+
+	VersionICEStandard   byte = 17
+	VersionICEHeartbeat  byte = 18
+
+	udtControlBit      uint32 = 1 << 31
+	udtReliableBit     uint32 = 1 << 30
+	udtMessageBit      uint32 = 1 << 29
+	udtObfuscationMask uint32 = 3 << 27
+	udtSequenceMask    uint32 = (1 << 27) - 1
 )
 
 type Packet struct {
@@ -26,6 +30,9 @@ type Packet struct {
 	Payload       []byte
 }
 
+// DecodeDatagram reads the subset of Overte's UDT data packet framing used
+// by ICE: unreliable, unfragmented, unobfuscated NL packets. It intentionally
+// does not implement Overte's reliable transport or control-packet protocol.
 func DecodeDatagram(b []byte) (Packet, error) {
 	if len(b) < 6 {
 		return Packet{}, errors.New("datagram too short")
@@ -39,6 +46,7 @@ func DecodeDatagram(b []byte) (Packet, error) {
 	}
 	return Packet{Sequence: h & udtSequenceMask, Type: b[4], Version: b[5], Payload: b[6:]}, nil
 }
+
 func EncodeDatagram(sequence uint32, typ, version byte, payload []byte) []byte {
 	out := make([]byte, 6+len(payload))
 	binary.LittleEndian.PutUint32(out[:4], sequence&udtSequenceMask)
