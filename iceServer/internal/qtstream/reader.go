@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"unicode/utf16"
 )
 
 type Reader struct {
@@ -96,12 +97,12 @@ func (r *Reader) QString() (string, error) {
 	if e != nil {
 		return "", e
 	}
-	// Scope IDs are ASCII in normal networking configurations. Decode UTF-16 BMP safely.
-	out := make([]rune, 0, len(raw)/2)
+	// QDataStream serializes QString as UTF-16 code units in stream byte order.
+	units := make([]uint16, len(raw)/2)
 	for i := 0; i < len(raw); i += 2 {
-		out = append(out, rune(binary.BigEndian.Uint16(raw[i:i+2])))
+		units[i/2] = binary.BigEndian.Uint16(raw[i : i+2])
 	}
-	return string(out), nil
+	return string(utf16.Decode(units)), nil
 }
 func UUIDBytes(s string) ([]byte, error) {
 	// Canonical UUID parsing without accepting malformed separators.
