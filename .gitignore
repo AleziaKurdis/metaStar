@@ -1,0 +1,28 @@
+# Local configuration and secrets
+**/config/local.php
+**/config/local.json
+**/config/*.local.*
+**/*.token
+**/*secret*
+**/*.pem
+**/*.key
+**/*.crt
+**/certs/
+**/data/
+**/storage/
+**/logs/
+**/*.log
+
+# PHP runtime data
+directoryServer/var/
+directoryServer/cache/
+
+# Go build output
+iceServer/*.test
+iceServer/coverage.out
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
