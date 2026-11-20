@@ -23,7 +23,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: iceServer/go.mod
-          cache-dependency-path: iceServer/go.sum
+          cache: false
       - name: Run tests
         working-directory: iceServer
         run: go test -race ./...
