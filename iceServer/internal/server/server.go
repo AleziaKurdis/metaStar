@@ -207,7 +207,10 @@ func (s *Server) handleDatagram(data []byte, addr *net.UDPAddr) {
 			return
 		}
 		if e = protocol.VerifyHeartbeat(key, hb.Signed, hb.Signature); e != nil {
-			log.Printf("invalid heartbeat signature for domain %s", hb.DomainID)
+			log.Printf("invalid heartbeat signature for domain %s; refreshing public key", hb.DomainID)
+			// Match the original ICE server: a failed signature can mean the
+			// Domain Server rotated its keypair. Refresh from this UUID's owner.
+			s.requestKey(dir, hb.DomainID)
 			s.sendSimple(addr, protocol.PacketICEServerHeartbeatDenied)
 			return
 		}
@@ -268,7 +271,7 @@ func (s *Server) getKey(id string) *rsa.PublicKey {
 }
 func (s *Server) requestKey(dir registry.Directory, id string) {
 	s.keysMu.Lock()
-	if s.pending[id] || s.keys[id] != nil {
+	if s.pending[id] {
 		s.keysMu.Unlock()
 		return
 	}
