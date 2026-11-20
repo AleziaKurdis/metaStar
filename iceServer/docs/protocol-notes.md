@@ -62,7 +62,7 @@ The Domain Server writes a Qt `QDataStream` payload containing:
 3. Local `SockAddr` (QHostAddress + port)
 4. Signature as a `QByteArray`
 
-The signature covers the serialized bytes of items 1–3, before the signature byte-array field. The original ICE Server verifies RSA/SHA-256. When the key is missing, it requests the public key from the directory API and denies that heartbeat; a subsequent heartbeat can succeed after the key has been loaded.
+The signature covers the serialized bytes of items 1–3, before the signature byte-array field. The original ICE Server verifies RSA/SHA-256. When the key is missing, it requests the public key from the owning Directory Service and denies that heartbeat; a subsequent heartbeat can succeed after the key has been loaded. If a cached key fails signature verification, the original ICE Server requests the key again. The Go implementation now mirrors this key-rotation behavior, deduplicating concurrent refresh requests while one is pending.
 
 ## Query and peer-information payloads
 
