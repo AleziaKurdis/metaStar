@@ -108,6 +108,25 @@ Peer-information payload:
 
 The original ICE server sends the target peer's information to the requester and the requester's information to the target peer's active socket.
 
+## Active peer socket and NAT rebinding
+
+The original ICE server activates the socket that actually delivered the latest valid heartbeat:
+
+1. It calls `activateMatchingOrNewSymmetricSocket(nlPacket->getSenderSockAddr())`.
+2. If the observed sender address matches the peer's advertised public socket, that socket becomes active.
+3. If it matches the advertised local socket, the local socket becomes active.
+4. Otherwise, the observed sender address is stored as the symmetric socket and becomes active.
+
+When another peer asks for this peer, the ICE server sends the requester's peer information to the target peer's active socket. The Go implementation represents this active destination as the `Observed` source address from the most recent valid heartbeat.
+
+A regression test now models a target peer sending heartbeats from one UDP source endpoint and then a new endpoint (simulating a changed NAT mapping). A separate requester queries the target. The test verifies that:
+
+- the requester receives the target's advertised public and local addresses;
+- the target's newest observed endpoint receives the requester's advertised addresses; and
+- the superseded endpoint does not receive the reverse peer-information packet.
+
+This exercises the two-way ICE introduction behavior at the local UDP socket level. It does not prove that real Internet NATs will permit the resulting hole punch; that still requires live network testing.
+
 ## Multi-directory routing
 
 The existing heartbeat and query packet formats do not carry a Directory Service identifier. Therefore a shared ICE service needs a trusted registry mapping each Domain UUID to the Directory Service that owns it. The ICE service uses that mapping to retrieve the domain's public key from the correct Directory Service.
