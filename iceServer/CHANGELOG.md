@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1-dev
+
+- Corrected all five Go ICE packet type identifiers to the zero-based values in Overte's `PacketTypeEnum::Value`.
+- Added numeric golden tests and an Overte heartbeat datagram wire-layout fixture so packet type drift cannot be hidden by tests that reuse implementation constants.
+- Documented the exact unreliable, unfragmented, unobfuscated UDP data-frame subset used by ICE and the source paths supporting it.
+- Clarified that this implementation does not implement Overte's full reliable UDT transport; the reviewed ICE message paths use unreliable packets.
+
 ## 0.3.0-dev
 
 - Introduced shared bootstrap enrollment secret and per-directory issued credentials.
