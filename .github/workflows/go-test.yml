@@ -1,0 +1,32 @@
+name: Go ICE checks
+
+on:
+  push:
+    paths:
+      - "iceServer/**"
+      - ".github/workflows/go-test.yml"
+  pull_request:
+    paths:
+      - "iceServer/**"
+      - ".github/workflows/go-test.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: iceServer/go.mod
+          cache-dependency-path: iceServer/go.sum
+      - name: Run tests
+        working-directory: iceServer
+        run: go test -race ./...
+      - name: Run vet
+        working-directory: iceServer
+        run: go vet ./...
