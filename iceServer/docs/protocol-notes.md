@@ -64,6 +64,33 @@ The Domain Server writes a Qt `QDataStream` payload containing:
 
 The signature covers the serialized bytes of items 1–3, before the signature byte-array field. The original ICE Server verifies RSA/SHA-256. When the key is missing, it requests the public key from the owning Directory Service and denies that heartbeat; a subsequent heartbeat can succeed after the key has been loaded. If a cached key fails signature verification, the original ICE Server requests the key again. The Go implementation now mirrors this key-rotation behavior, deduplicating concurrent refresh requests while one is pending.
 
+## Qt SockAddr wire serialization
+
+Overte's `SockAddr.cpp` defines its stream operators as:
+
+- write: `dataStream << sockAddr._address << sockAddr._port`
+- read: `dataStream >> sockAddr._address >> sockAddr._port`
+
+The socket type is deliberately omitted from ICE packets.
+
+Qt's `QHostAddress` QDataStream operator serializes the network-layer protocol as a signed byte. For IPv4 it then writes the address as a 32-bit integer; for IPv6 it writes the 16 address octets followed by the scope ID as a `QString`. The `SockAddr` operator then writes the port as a 16-bit integer. QDataStream's default byte order is big-endian.
+
+The Go reader follows that layout:
+
+| Address kind | Serialized fields |
+|---|---|
+| IPv4 | protocol byte `1`, IPv4 `quint32`, port `quint16` |
+| IPv6 | protocol byte `2`, 16 address bytes, scope `QString`, port `quint16` |
+| Unknown / Any | protocol byte `0` / `3`, port `quint16` |
+
+The Go reader retains the original serialized SockAddr bytes when building peer-information packets, rather than re-encoding them from a display string. IPv6 scope strings are decoded as UTF-16, including surrogate pairs.
+
+Regression fixtures now cover an IPv4 address, a scoped IPv6 address, a Unicode surrogate pair in a QString, and malformed/truncated address data. These are source-derived wire-format fixtures, not captures from a live Overte process.
+
+Relevant Qt serialization references:
+- [Qt 6 QHostAddress stream operator source](https://codebrowser.dev/qt6/qtbase/src/network/kernel/qhostaddress.cpp.html)
+- [Qt 6 QDataStream default byte order](https://doc.qt.io/qt-6/qdatastream.html)
+
 ## Query and peer-information payloads
 
 Query payload:
