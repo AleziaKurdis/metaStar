@@ -300,3 +300,45 @@ func TestRegisterAuthorizedRejectsRotatedCredential(t *testing.T) {
 		t.Fatalf("stale credential changed directory state: %#v, exists=%v", owner, ok)
 	}
 }
+
+func TestLoadRejectsInsecurePersistedDirectoryURL(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "registry.json")
+	data := `{
+		"directories": {
+			"directory-one": {
+				"id": "directory-one",
+				"base_url": "http://directory.example",
+				"domains": ["4784f9dc-388c-47c3-8855-373d22f31ff4"]
+			}
+		},
+		"owners": {},
+		"credential_hashes": {}
+	}`
+	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := New(path); err == nil {
+		t.Fatal("registry with an HTTP Directory Service URL was loaded")
+	}
+}
+
+func TestLoadRejectsMismatchedPersistedDirectoryID(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "registry.json")
+	data := `{
+		"directories": {
+			"directory-one": {
+				"id": "directory-two",
+				"base_url": "https://directory.example",
+				"domains": []
+			}
+		},
+		"owners": {},
+		"credential_hashes": {}
+	}`
+	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := New(path); err == nil {
+		t.Fatal("registry with a mismatched Directory Service ID was loaded")
+	}
+}
