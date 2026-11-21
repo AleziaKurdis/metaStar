@@ -115,3 +115,48 @@ func TestEnrollEvictsStalePeerWhenUUIDReceivesItsFirstOwner(t *testing.T) {
 		t.Fatalf("new owner was not recorded: owner=%#v exists=%v", owner, ok)
 	}
 }
+
+
+func TestRegisterPreservesCachedKeysAndPeersForUnchangedOwnership(t *testing.T) {
+	srv, err := New(config.Config{
+		DataFile: filepath.Join(t.TempDir(), "registry.json"),
+		EnrollmentToken: "bootstrap-secret-for-test",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	token, err := srv.registry.Enroll("directory-one", "https://one.example", []string{removedDomainID})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	key := &rsa.PublicKey{}
+	peer := protocol.Peer{ID: removedDomainID, Observed: "192.0.2.10:40000"}
+	srv.keys[removedDomainID] = key
+	srv.peers[removedDomainID] = peer
+
+	body, err := json.Marshal(registerRequest{
+		DirectoryID: "directory-one",
+		BaseURL:     "https://one.example",
+		Domains:     []string{removedDomainID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPut, "/v1/register", bytes.NewReader(body))
+	request.Header.Set("Authorization", "Bearer "+token)
+	response := httptest.NewRecorder()
+
+	srv.handleRegister(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("registration status = %d, want %d; body: %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	if got := srv.keys[removedDomainID]; got != key {
+		t.Fatal("routine registration discarded the cached public key")
+	}
+	if got, exists := srv.peers[removedDomainID]; !exists || got.Observed != peer.Observed {
+		t.Fatal("routine registration discarded or changed the active peer")
+	}
+}

@@ -199,10 +199,9 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusConflict, apiResponse{Status: "error", Message: e.Error()})
 		return
 	}
-	// Drop cached keys when a directory changes its advertised domain list.
-	s.keysMu.Lock()
-	s.keys = map[string]*rsa.PublicKey{}
-	s.keysMu.Unlock()
+	// Invalidate only peers and keys whose Directory Service ownership changed.
+	// Routine synchronization must not force every active domain through
+	// public-key retrieval and heartbeat denial again.
 	s.evictPeersForOwnershipChanges(previousOwners)
 	s.ownershipMu.Unlock()
 	log.Printf("Directory Service %q registered %d domains (%s)", req.DirectoryID, len(req.Domains), req.BaseURL)
