@@ -250,6 +250,28 @@ func (s *Store) Recover(id string) (string, error) {
 	}
 	return token, nil
 }
+// RegisterAuthorized validates the current credential and applies the
+// registration update under the same lock. This prevents a credential rotated
+// by Recover between an HTTP handler's check and update from being accepted.
+func (s *Store) RegisterAuthorized(id, token, base string, domains []string) (bool, error) {
+	id = strings.TrimSpace(id)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	expected, ok := s.data.CredentialHashes[id]
+	if !ok || len(token) < 32 {
+		return false, nil
+	}
+	sum := sha256.Sum256([]byte(token))
+	actual := hex.EncodeToString(sum[:])
+	if subtle.ConstantTimeCompare([]byte(expected), []byte(actual)) != 1 {
+		return false, nil
+	}
+	if err := s.registerLocked(id, base, domains, ""); err != nil {
+		return true, err
+	}
+	return true, nil
+}
+
 func (s *Store) TokenValid(id, token string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
