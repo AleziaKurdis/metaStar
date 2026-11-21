@@ -31,7 +31,39 @@ type keyRetryState struct {
 	nextAttempt time.Time
 }
 
-const maxConcurrentKeyFetches = 32
+const (
+	maxConcurrentKeyFetches = 32
+	// A single consumer preserves UDP receive order while allowing the socket
+	// reader to keep draining short bursts. The queue is intentionally finite.
+	udpIngressQueueCapacity = 256
+)
+
+type inboundDatagram struct {
+	data []byte
+	addr *net.UDPAddr
+}
+
+func enqueueDatagram(queue chan inboundDatagram, data []byte, addr *net.UDPAddr) bool {
+	// readUDP is the sole producer, so this capacity check avoids allocating
+	// packet copies for traffic that is already known to be dropped.
+	if len(queue) >= cap(queue) {
+		return false
+	}
+	packet := inboundDatagram{
+		data: append([]byte(nil), data...),
+		addr: &net.UDPAddr{
+			IP: append(net.IP(nil), addr.IP...),
+			Port: addr.Port,
+			Zone: addr.Zone,
+		},
+	}
+	select {
+	case queue <- packet:
+		return true
+	default:
+		return false
+	}
+}
 
 type Server struct {
 	cfg         config.Config
@@ -230,9 +262,24 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 func (s *Server) readUDP() error {
+	// Keep socket reception independent from packet processing. A single
+	// consumer preserves packet order (important for heartbeat/NAT endpoint
+	// updates), while the finite queue bounds memory during short bursts.
+	queue := make(chan inboundDatagram, udpIngressQueueCapacity)
+	workerDone := make(chan struct{})
+	go func() {
+		defer close(workerDone)
+		for packet := range queue {
+			s.handleDatagramInternal(packet.data, packet.addr, true)
+		}
+	}()
+	defer func() {
+		close(queue)
+		<-workerDone
+	}()
+
 	// Read the largest possible UDP payload so ReadFromUDP cannot silently
 	// truncate an oversized datagram into a valid-looking ICE packet prefix.
-	// The protocol decoder then enforces the much smaller application limit.
 	buf := make([]byte, 65535)
 	for {
 		n, addr, e := s.udp.ReadFromUDP(buf)
@@ -242,11 +289,47 @@ func (s *Server) readUDP() error {
 		if n > protocol.MaxDatagramSize {
 			continue
 		}
-		data := append([]byte(nil), buf[:n]...)
-		s.handleDatagram(data, addr)
+		packet, e := protocol.DecodeDatagram(buf[:n])
+		if e != nil {
+			continue
+		}
+
+		// Reject unsupported or malformed ICE payloads before they consume
+		// queue space. Query abuse control is applied at ingress so a flood of
+		// unauthenticated queries cannot occupy the heartbeat processing queue.
+		switch packet.Type {
+		case protocol.PacketICEServerHeartbeat:
+			if packet.Version != protocol.VersionICEHeartbeat {
+				continue
+			}
+			if _, e := protocol.ParseHeartbeat(packet.Payload); e != nil {
+				continue
+			}
+		case protocol.PacketICEServerQuery:
+			if packet.Version != protocol.VersionICEStandard {
+				continue
+			}
+			if _, e := protocol.ParseQuery(packet.Payload); e != nil {
+				continue
+			}
+			if !s.queryLimits.allow(addr, time.Now()) {
+				continue
+			}
+		default:
+			continue
+		}
+
+		// When saturated, drop the newest datagram rather than spawning work
+		// or growing memory without bound. Existing queued packets keep order.
+		enqueueDatagram(queue, buf[:n], addr)
 	}
 }
+
 func (s *Server) handleDatagram(data []byte, addr *net.UDPAddr) {
+	s.handleDatagramInternal(data, addr, false)
+}
+
+func (s *Server) handleDatagramInternal(data []byte, addr *net.UDPAddr, queryAdmitted bool) {
 	p, e := protocol.DecodeDatagram(data)
 	if e != nil {
 		return
@@ -316,7 +399,7 @@ func (s *Server) handleDatagram(data []byte, addr *net.UDPAddr) {
 		// ICE queries have no client authentication in the Overte wire
 		// protocol. Bound relay work by the observed source IP without
 		// changing the packet format or requiring client changes.
-		if !s.queryLimits.allow(addr, time.Now()) {
+		if !queryAdmitted && !s.queryLimits.allow(addr, time.Now()) {
 			return
 		}
 		s.ownershipMu.RLock()
