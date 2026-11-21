@@ -21,9 +21,10 @@ import (
 )
 
 type Server struct {
-	cfg        config.Config
-	registry   *registry.Store
-	peersMu    sync.RWMutex
+	cfg         config.Config
+	registry    *registry.Store
+	ownershipMu sync.RWMutex
+	peersMu     sync.RWMutex
 	peers      map[string]protocol.Peer
 	keysMu     sync.RWMutex
 	keys       map[string]*rsa.PublicKey
@@ -121,8 +122,11 @@ func (s *Server) handleEnroll(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, apiResponse{Status: "error", Message: "invalid enrollment secret"})
 		return
 	}
+	s.ownershipMu.Lock()
+	previousOwners := s.registry.Snapshot().Owners
 	token, err := s.registry.Enroll(req.DirectoryID, req.BaseURL, req.Domains)
 	if err != nil {
+		s.ownershipMu.Unlock()
 		writeJSON(w, 409, apiResponse{Status: "error", Message: err.Error()})
 		return
 	}
@@ -131,6 +135,8 @@ func (s *Server) handleEnroll(w http.ResponseWriter, r *http.Request) {
 		delete(s.keys, id)
 	}
 	s.keysMu.Unlock()
+	s.evictPeersForOwnershipChanges(previousOwners)
+	s.ownershipMu.Unlock()
 	log.Printf("Directory %q enrolled with %d domains", req.DirectoryID, len(req.Domains))
 	writeJSON(w, 200, map[string]string{"status": "success", "registration_token": token})
 }
@@ -152,7 +158,10 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, apiResponse{Status: "error", Message: "invalid registration credentials"})
 		return
 	}
+	s.ownershipMu.Lock()
+	previousOwners := s.registry.Snapshot().Owners
 	if e := s.registry.Register(req.DirectoryID, req.BaseURL, req.Domains); e != nil {
+		s.ownershipMu.Unlock()
 		writeJSON(w, http.StatusConflict, apiResponse{Status: "error", Message: e.Error()})
 		return
 	}
@@ -160,6 +169,8 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	s.keysMu.Lock()
 	s.keys = map[string]*rsa.PublicKey{}
 	s.keysMu.Unlock()
+	s.evictPeersForOwnershipChanges(previousOwners)
+	s.ownershipMu.Unlock()
 	log.Printf("Directory Service %q registered %d domains (%s)", req.DirectoryID, len(req.Domains), req.BaseURL)
 	writeJSON(w, http.StatusOK, apiResponse{Status: "success", Message: fmt.Sprintf("registered %d domains", len(req.Domains))})
 }
@@ -194,8 +205,10 @@ func (s *Server) handleDatagram(data []byte, addr *net.UDPAddr) {
 			log.Printf("discard malformed ICE heartbeat from %s: %v", addr, e)
 			return
 		}
+		s.ownershipMu.RLock()
 		dir, ok := s.registry.Owner(hb.DomainID)
 		if !ok {
+			s.ownershipMu.RUnlock()
 			log.Printf("heartbeat from unregistered domain %s (%s)", hb.DomainID, addr)
 			s.sendSimple(addr, protocol.PacketICEServerHeartbeatDenied)
 			return
@@ -203,6 +216,7 @@ func (s *Server) handleDatagram(data []byte, addr *net.UDPAddr) {
 		key := s.getKey(hb.DomainID)
 		if key == nil {
 			s.requestKey(dir, hb.DomainID)
+			s.ownershipMu.RUnlock()
 			s.sendSimple(addr, protocol.PacketICEServerHeartbeatDenied)
 			return
 		}
@@ -211,6 +225,7 @@ func (s *Server) handleDatagram(data []byte, addr *net.UDPAddr) {
 			// Match the original ICE server: a failed signature can mean the
 			// Domain Server rotated its keypair. Refresh from this UUID's owner.
 			s.requestKey(dir, hb.DomainID)
+			s.ownershipMu.RUnlock()
 			s.sendSimple(addr, protocol.PacketICEServerHeartbeatDenied)
 			return
 		}
@@ -218,6 +233,7 @@ func (s *Server) handleDatagram(data []byte, addr *net.UDPAddr) {
 		s.peersMu.Lock()
 		s.peers[hb.DomainID] = peer
 		s.peersMu.Unlock()
+		s.ownershipMu.RUnlock()
 		s.sendSimple(addr, protocol.PacketICEServerHeartbeatACK)
 	case protocol.PacketICEServerQuery:
 		if p.Version != protocol.VersionICEStandard {
@@ -228,26 +244,31 @@ func (s *Server) handleDatagram(data []byte, addr *net.UDPAddr) {
 			log.Printf("discard malformed ICE query from %s: %v", addr, e)
 			return
 		}
+		s.ownershipMu.RLock()
 		s.peersMu.RLock()
 		target, ok := s.peers[q.TargetID]
 		s.peersMu.RUnlock()
 		if !ok {
+			s.ownershipMu.RUnlock()
 			return
 		}
 		targetPayload, e := protocol.PeerPayload(target)
 		if e != nil {
+			s.ownershipMu.RUnlock()
 			return
 		}
 		s.sendPacket(addr, protocol.PacketICEServerPeerInformation, protocol.VersionICEStandard, targetPayload)
 		requester := protocol.Peer{ID: q.SenderID, Public: q.Public, Local: q.Local}
 		requesterPayload, e := protocol.PeerPayload(requester)
 		if e != nil {
+			s.ownershipMu.RUnlock()
 			return
 		}
 		targetAddr, e := net.ResolveUDPAddr("udp", target.Observed)
 		if e == nil {
 			s.sendPacket(targetAddr, protocol.PacketICEServerPeerInformation, protocol.VersionICEStandard, requesterPayload)
 		}
+		s.ownershipMu.RUnlock()
 	}
 }
 func (s *Server) sendSimple(addr *net.UDPAddr, typ byte) {
@@ -264,6 +285,31 @@ func (s *Server) sendPacket(addr *net.UDPAddr, typ, version byte, payload []byte
 		log.Printf("send UDP packet to %s: %v", addr, e)
 	}
 }
+// evictPeersForOwnershipChanges removes active peers whose Directory Service owner
+// changed during an enrollment or registration update. The caller must hold
+// ownershipMu for writing so heartbeat and query handling cannot race the update.
+func (s *Server) evictPeersForOwnershipChanges(previousOwners map[string]string) {
+	currentOwners := s.registry.Snapshot().Owners
+	var evicted []string
+
+	s.peersMu.Lock()
+	for id := range s.peers {
+		if previousOwners[id] != currentOwners[id] {
+			delete(s.peers, id)
+			evicted = append(evicted, id)
+		}
+	}
+	s.peersMu.Unlock()
+
+	if len(evicted) > 0 {
+		s.keysMu.Lock()
+		for _, id := range evicted {
+			delete(s.keys, id)
+		}
+		s.keysMu.Unlock()
+	}
+}
+
 func (s *Server) getKey(id string) *rsa.PublicKey {
 	s.keysMu.RLock()
 	defer s.keysMu.RUnlock()
@@ -284,9 +330,17 @@ func (s *Server) requestKey(dir registry.Directory, id string) {
 			log.Printf("could not retrieve public key for %s from %s: %v", id, dir.ID, e)
 			return
 		}
+		s.ownershipMu.RLock()
+		currentOwner, stillOwned := s.registry.Owner(id)
+		if !stillOwned || currentOwner.ID != dir.ID || currentOwner.BaseURL != dir.BaseURL {
+			s.ownershipMu.RUnlock()
+			log.Printf("discarded stale public key response for domain %s (directory ownership changed)", id)
+			return
+		}
 		s.keysMu.Lock()
 		s.keys[id] = key
 		s.keysMu.Unlock()
+		s.ownershipMu.RUnlock()
 		log.Printf("loaded RSA public key for domain %s (directory %s)", id, dir.ID)
 	}()
 }
