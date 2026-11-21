@@ -19,7 +19,7 @@ This is suitable for controlled testing, but distributing and rotating a self-si
 
 A publicly trusted certificate can be used without changing the IP address advertised to Overte. The ICE service's `advertise_ip` remains the public IP address used for its self-signed certificate; the Directory Server connects to the HTTPS control API using a DNS hostname.
 
-1. Create a DNS A record (for example, `ice.example.org`) pointing to the ICE server's public address.
+1. Create a DNS A record for IPv4 or an AAAA record for IPv6 (for example, `ice.example.org`) pointing to the ICE server's public address.
 2. Obtain a certificate whose SAN includes that exact hostname, using your preferred ACME client or certificate authority.
 3. Install the certificate chain and private key at paths readable by the `overte-ice` service account. For example, copy them into `/etc/overte-ice/`, keeping the private key restricted to the service group.
 4. Set `tls_cert_file` and `tls_key_file` in `/etc/overte-ice/config.json` to those files. Keep `advertise_ip` set to the public IPv4 or IPv6 address configured for the service.
