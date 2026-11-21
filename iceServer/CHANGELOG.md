@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.5-dev
+
+- Evict active peers immediately when Directory Service enrollment or synchronization changes their UUID ownership.
+- Serialize heartbeat acceptance and peer queries against ownership updates to prevent stale peers being reintroduced or returned during synchronization.
+- Discard an in-flight public-key response if the domain's Directory Service owner or base URL changed while the request was running.
+- Added handler-level tests for domain removal and first-time ownership assignment.
+
 ## 0.3.4-dev
 
 - Documented Overte's per-destination unreliable UDT sequence-number behavior.
