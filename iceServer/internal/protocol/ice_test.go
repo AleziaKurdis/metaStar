@@ -102,3 +102,39 @@ func TestParseQuery(t *testing.T) {
 		t.Fatalf("unexpected query: %#v", q)
 	}
 }
+
+
+func TestParseQueryRejectsInvalidUUIDs(t *testing.T) {
+	valid := []byte{0x47, 0x84, 0xf9, 0xdc, 0x38, 0x8c, 0x47, 0xc3, 0x88, 0x55, 0x37, 0x3d, 0x22, 0xf3, 0x1f, 0xf4}
+	sock := []byte{1, 192, 168, 1, 20, 0x1c, 0x9c}
+	makePayload := func(sender, target []byte) []byte {
+		payload := append([]byte{}, sender...)
+		payload = append(payload, sock...)
+		payload = append(payload, sock...)
+		payload = append(payload, target...)
+		return payload
+	}
+	invalidVersion := append([]byte(nil), valid...)
+	invalidVersion[6] = 0x08
+	invalidVariant := append([]byte(nil), valid...)
+	invalidVariant[8] = 0x08
+	nilUUID := make([]byte, 16)
+	tests := []struct {
+		name string
+		payload []byte
+	}{
+		{"nil sender UUID", makePayload(nilUUID, valid)},
+		{"unsupported sender version", makePayload(invalidVersion, valid)},
+		{"invalid sender variant", makePayload(invalidVariant, valid)},
+		{"nil target UUID", makePayload(valid, nilUUID)},
+		{"unsupported target version", makePayload(valid, invalidVersion)},
+		{"invalid target variant", makePayload(valid, invalidVariant)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := ParseQuery(tt.payload); err == nil {
+				t.Fatal("expected invalid UUID to be rejected")
+			}
+		})
+	}
+}
