@@ -1,6 +1,6 @@
 # Directory Server ↔ metaStar ICE registration
 
-The Directory Server synchronizes its complete domain UUID list with the Go ICE control API. Domain heartbeats enqueue synchronization when it is due; a separate CLI worker performs the network request. This keeps ICE calls out of the heartbeat response and allows temporary ICE outages to be retried without affecting Domain Server API requests.
+The Directory Server synchronizes its complete domain UUID list with the Go ICE control API. Domain creation and deletion enqueue immediate reconciliation; domain heartbeats enqueue periodic synchronization when due. A separate CLI worker performs network requests, keeping ICE calls out of HTTP responses and allowing temporary ICE outages to be retried without blocking Domain Server API requests.
 
 ## Configuration
 
@@ -54,7 +54,7 @@ The worker processes pending tasks only. It is safe to invoke every minute; it e
 ## Operational boundaries
 
 - Enrollment remains a deliberate one-time CLI operation; it never runs automatically during web requests.
-- After enrollment, Domain Server heartbeats enqueue due ICE sync work. A cron invocation of `bin/scheduler.php` is required to execute it; without a worker, queued syncs remain pending.
+- After enrollment, domain creation/deletion enqueue immediate ICE reconciliation, and Domain Server heartbeats enqueue periodic sync work. A cron invocation of `bin/scheduler.php` is required to execute queued work; without a worker, it remains pending.
 - It does not change the ICE address advertised to Overte; configure `default_ice_server_url` separately to the correct public ICE address.
 - The ICE service's current self-signed IP certificate requires explicit secure distribution and trust configuration.
 - If the ICE endpoint or certificate changes, update `ice_control_url` and `ice_control_ca_file` before running sync.
