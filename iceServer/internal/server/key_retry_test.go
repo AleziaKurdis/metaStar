@@ -132,10 +132,15 @@ func TestOwnershipChangeClearsKeyRetryState(t *testing.T) {
 	}
 
 	srv.keysMu.Lock()
+	previousOwner := keyRequestOwner{directoryID: "directory-one", baseURL: "https://one.example"}
 	srv.keyRetries[retryTestDomainID] = keyRetryState{
-		owner: keyRequestOwner{directoryID: "directory-one", baseURL: "https://one.example"},
-		failures: 3,
+		owner:       previousOwner,
+		failures:    3,
 		nextAttempt: time.Now().Add(30 * time.Second),
+	}
+	srv.keyRefreshCooldowns[retryTestDomainID] = keyRefreshCooldownState{
+		owner:       previousOwner,
+		nextAttempt: time.Now().Add(keyRefreshCooldown),
 	}
 	srv.keysMu.Unlock()
 
