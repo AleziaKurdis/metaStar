@@ -97,7 +97,9 @@ The Go reader follows that layout:
 
 The Go reader retains the original serialized SockAddr bytes when building peer-information packets, rather than re-encoding them from a display string. IPv6 scope strings are decoded as UTF-16, including surrogate pairs.
 
-Regression fixtures now cover an IPv4 address, a scoped IPv6 address, a Unicode surrogate pair in a QString, and malformed/truncated address data. These are source-derived wire-format fixtures, not captures from a live Overte process.
+MetaStar accepts unspecified addresses and port zero because the Domain Server starts its ICE heartbeat timer immediately while STUN public-socket discovery is still in progress; an early heartbeat can therefore contain an endpoint placeholder. It rejects multicast and IPv4 limited-broadcast addresses in either advertised socket. Those destinations cannot identify an individual peer and should not be relayed to other Overte clients. This is an additional MetaStar input-safety check; it does not alter the serialized format or require client changes. Directed IPv4 broadcast addresses cannot be identified without the sender's subnet mask and are not claimed to be covered.
+
+Regression fixtures cover IPv4, scoped IPv6, a Unicode surrogate pair in a QString, unspecified startup endpoints, multicast/broadcast rejection, and malformed/truncated address data. These are source-derived wire-format fixtures, not captures from a live Overte process.
 
 Relevant Qt serialization references:
 - [Qt 6 QHostAddress stream operator source](https://codebrowser.dev/qt6/qtbase/src/network/kernel/qhostaddress.cpp.html)

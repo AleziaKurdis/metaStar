@@ -96,3 +96,58 @@ func TestRejectTruncatedIPv6ScopeID(t *testing.T) {
 		t.Fatal("expected truncated IPv6 scope QString to fail")
 	}
 }
+
+
+func TestSocketRejectsMulticastAndBroadcastAddresses(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{"IPv4 multicast", []byte{1, 239, 1, 2, 3, 0x1c, 0x9c}},
+		{"IPv4 limited broadcast", []byte{1, 255, 255, 255, 255, 0x1c, 0x9c}},
+		{"IPv6 multicast", []byte{
+			2,
+			0xff, 0x02, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 1,
+			0, 0, 0, 0, 0, 0, 0, 0,
+			0x1c, 0x9c,
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := Reader{B: tt.data}
+			if _, _, err := r.Socket(); err == nil {
+				t.Fatal("expected multicast or broadcast SockAddr to be rejected")
+			}
+		})
+	}
+}
+
+func TestSocketAllowsUnspecifiedAddressAndZeroPort(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+		want string
+	}{
+		{"IPv4 unspecified", []byte{1, 0, 0, 0, 0, 0, 0}, "0.0.0.0:0"},
+		{"IPv6 unspecified", []byte{
+			2,
+			0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0,
+			0, 0,
+		}, "[::]:0"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := Reader{B: tt.data}
+			got, _, err := r.Socket()
+			if err != nil {
+				t.Fatalf("unspecified endpoint rejected: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("Socket() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

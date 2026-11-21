@@ -68,6 +68,14 @@ func (r *Reader) Socket() (string, []byte, error) {
 		return "", nil, e
 	}
 	port := binary.BigEndian.Uint16(pb)
+	// ICE peer endpoints must be unicast or unspecified. Broadcast and
+	// multicast destinations cannot identify an individual Overte peer and
+	// must not be propagated to other clients. Keep unspecified addresses
+	// and port zero valid: Domain Servers can heartbeat before STUN has
+	// completed its initial public-socket discovery.
+	if ip.IsMulticast() || ip.Equal(net.IPv4bcast) {
+		return "", nil, fmt.Errorf("unsupported multicast or broadcast SockAddr %s", ip.String())
+	}
 	return net.JoinHostPort(ip.String(), fmt.Sprintf("%d", port)), r.B[start:r.Off], nil
 }
 func (r *Reader) QByteArray() ([]byte, error) {
