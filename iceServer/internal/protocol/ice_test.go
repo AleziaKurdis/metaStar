@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"math/big"
 	"strings"
 	"testing"
 
@@ -169,5 +170,82 @@ func TestParseHeartbeatRejectsInvalidDomainUUIDs(t *testing.T) {
 				t.Fatal("expected invalid domain UUID to be rejected")
 			}
 		})
+	}
+}
+
+
+func TestFetchPublicKeyRejectsNonOverteRSAParameters(t *testing.T) {
+	weakKey, err := rsa.GenerateKey(rand.Reader, 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	strongKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrongExponent := &rsa.PublicKey{N: new(big.Int).Set(strongKey.N), E: 3}
+
+	tests := []struct {
+		name string
+		key  *rsa.PublicKey
+		der  []byte
+	}{
+		{
+			name: "1024-bit modulus",
+			key:  &weakKey.PublicKey,
+			der:  x509.MarshalPKCS1PublicKey(&weakKey.PublicKey),
+		},
+		{
+			name: "unexpected exponent",
+			key:  wrongExponent,
+			der:  mustMarshalPKIXPublicKey(t, wrongExponent),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"status": "success",
+					"data": map[string]string{"public_key": base64.StdEncoding.EncodeToString(tt.der)},
+				})
+			}))
+			defer server.Close()
+
+			if _, err := FetchPublicKey(server.Client(), registry.Directory{BaseURL: server.URL}, "4784f9dc-388c-47c3-8855-373d22f31ff4"); err == nil {
+				t.Fatal("expected non-Overte RSA parameters to be rejected")
+			}
+		})
+	}
+}
+
+func mustMarshalPKIXPublicKey(t *testing.T, key *rsa.PublicKey) []byte {
+	t.Helper()
+	der, err := x509.MarshalPKIXPublicKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return der
+}
+
+func TestFetchPublicKeyAcceptsOvertePKCS1PublicKey(t *testing.T) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	der := x509.MarshalPKCS1PublicKey(&privateKey.PublicKey)
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status": "success",
+			"data": map[string]string{"public_key": base64.StdEncoding.EncodeToString(der)},
+		})
+	}))
+	defer server.Close()
+
+	key, err := FetchPublicKey(server.Client(), registry.Directory{BaseURL: server.URL}, "4784f9dc-388c-47c3-8855-373d22f31ff4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if key.N.Cmp(privateKey.PublicKey.N) != 0 || key.E != privateKey.PublicKey.E {
+		t.Fatal("fetched RSA public key does not match response")
 	}
 }
