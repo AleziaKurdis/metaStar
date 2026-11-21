@@ -49,6 +49,7 @@ type Server struct {
 	keyClient      *http.Client
 	keyFetchSlots  chan struct{}
 	queryLimits    *queryLimiter
+	heartbeatDenials *heartbeatDenialLimiter
 }
 
 type registerRequest struct {
@@ -66,7 +67,7 @@ func New(cfg config.Config) (*Server, error) {
 	if e != nil {
 		return nil, e
 	}
-	return &Server{cfg: cfg, registry: r, peers: map[string]protocol.Peer{}, keys: map[string]*rsa.PublicKey{}, pending: map[string]keyRequestOwner{}, keyRetries: map[string]keyRetryState{}, sequences: newSequenceTracker(), queryLimits: newQueryLimiter(), keyFetchSlots: make(chan struct{}, maxConcurrentKeyFetches), keyClient: &http.Client{Timeout: 8 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+	return &Server{cfg: cfg, registry: r, peers: map[string]protocol.Peer{}, keys: map[string]*rsa.PublicKey{}, pending: map[string]keyRequestOwner{}, keyRetries: map[string]keyRetryState{}, sequences: newSequenceTracker(), queryLimits: newQueryLimiter(), heartbeatDenials: newHeartbeatDenialLimiter(time.Now()), keyFetchSlots: make(chan struct{}, maxConcurrentKeyFetches), keyClient: &http.Client{Timeout: 8 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if req.URL.Scheme != "https" || len(via) > 0 && !strings.EqualFold(req.URL.Host, via[0].URL.Host) {
 			return http.ErrUseLastResponse
 		}
@@ -265,7 +266,13 @@ func (s *Server) handleDatagram(data []byte, addr *net.UDPAddr) {
 		if !ok {
 			s.ownershipMu.RUnlock()
 			log.Printf("heartbeat from unregistered domain %s (%s)", hb.DomainID, addr)
-			s.sendSimple(addr, protocol.PacketICEServerHeartbeatDenied)
+			// Unknown-domain heartbeats are unauthenticated. Bound denial replies
+			// globally to prevent a spoofed UUID flood from turning the ICE server
+			// into a response generator. This is not per-IP throttling and does
+			// not affect ACKs for registered domains sharing a NAT.
+			if s.heartbeatDenials.allow(time.Now()) {
+				s.sendSimple(addr, protocol.PacketICEServerHeartbeatDenied)
+			}
 			return
 		}
 		key := s.getKey(hb.DomainID)
