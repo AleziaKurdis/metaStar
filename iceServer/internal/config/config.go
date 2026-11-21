@@ -39,7 +39,7 @@ func Load(path string) (Config, error) {
 		c.DataFile = "/var/lib/overte-ice/registry.json"
 	}
 	if ip := net.ParseIP(c.AdvertiseIP); ip == nil || ip.To4() == nil {
-		return Config{}, errors.New("advertise_ip must be VIRZ public IPv4 address")
+		return Config{}, errors.New("advertise_ip must be a public IPv4 address")
 	}
 	if c.TLSCertFile == "" || c.TLSKeyFile == "" {
 		return Config{}, errors.New("tls_cert_file and tls_key_file must be configured")

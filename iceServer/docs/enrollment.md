@@ -2,7 +2,7 @@
 
 ## First-time enrollment
 
-POST `https://PUBLIC_IP:7337/v1/enroll` with a trusted IP-address TLS certificate.
+POST `https://ICE_HOST:7337/v1/enroll` with a trusted TLS certificate. `ICE_HOST` may be the public IPv4 address when using the installer's self-signed certificate, or a DNS hostname when using a CA-issued certificate.
 
 Headers: `Authorization: Bearer <ICE_ENROLLMENT_SECRET>`, `Content-Type: application/json`.
 
@@ -14,7 +14,7 @@ The response contains `registration_token` (64 hexadecimal characters). The PHP 
 
 ## Sync
 
-POST `https://PUBLIC_IP:7337/v1/register` with `Authorization: Bearer <REGISTRATION_TOKEN>` and the same JSON fields, including the **complete current** list of domain UUIDs. An empty list removes previous domain ownership entries while retaining the directory registration.
+POST `https://ICE_HOST:7337/v1/register` with `Authorization: Bearer <REGISTRATION_TOKEN>` and the same JSON fields, including the **complete current** list of domain UUIDs. An empty list removes previous domain ownership entries while retaining the directory registration.
 
 A second enrollment attempt with the same directory ID is rejected. Register calls cannot claim a UUID owned by another directory. Enrollment and sync are authenticated; this is not anonymous registration.
 
@@ -24,11 +24,13 @@ Registry persistence is atomic from the service's point of view: a failed file s
 
 ## TLS trust
 
-The ICE service generates a self-signed certificate for its public IPv4 address. The Directory Service must securely obtain the ICE certificate and configure its HTTP client to trust it. Changing public IP regenerates the certificate and requires redistributing trust. A CA-issued certificate or a stronger enrollment trust design may replace this before production.
+The installer creates a self-signed certificate for the configured public IPv4 address. The Directory Server must securely obtain that certificate and configure its HTTP client to trust it. Changing the advertised IP does not automatically update an existing certificate; certificate replacement and trust updates must be coordinated.
+
+A CA-issued certificate for a DNS hostname is also supported. The ICE process can load an existing certificate/key pair from the configured `tls_cert_file` and `tls_key_file` paths. The certificate must contain the DNS hostname used in the Directory Server's `ice_control_url`. See [TLS certificate setup](tls-certificates.md) for an installation and renewal procedure. Never disable certificate or hostname verification.
 
 ## PHP Directory Server integration
 
-The PHP Directory Server now includes the production-path integration code in `directoryServer/app/IceRegistrationService.php` and the CLI entry point `directoryServer/bin/ice-sync.php`.
+The PHP Directory Server now includes the integration code in `directoryServer/app/IceRegistrationService.php` and the CLI entry point `directoryServer/bin/ice-sync.php`.
 
 1. Configure `ice_control_url`, `ice_control_ca_file`, and a stable `ice_directory_id` in `directoryServer/config/local.php`.
 2. Run `php bin/ice-sync.php enroll` once with `OVERTE_ICE_ENROLLMENT_SECRET` set in the CLI environment.

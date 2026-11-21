@@ -9,7 +9,7 @@ Standalone Go ICE service for Ubuntu 24.04 x86_64. Designed for one ICE server t
 - UDP 7337 — Overte ICE protocol
 - TCP 7337 — HTTPS enrollment and directory synchronization
 
-No Apache/Nginx is required. Router forwarding must cover both protocols. The installer currently asks for the public IPv4 address used in the IP-address TLS certificate; it does not ask for a Directory Service ID.
+No Apache/Nginx is required. Router forwarding must cover both protocols. The installer asks for the public IPv4 address advertised to Overte. That address is independent of the DNS name used by Directory Services to reach the HTTPS control API.
 
 ## Protocol implementation status
 
@@ -38,7 +38,7 @@ go run ./cmd/ice-packet-inspect < /tmp/ice-datagrams.hex
 
 See [docs/overte-interoperability.md](docs/overte-interoperability.md) for the full capture procedure, safety notes, and required live test matrix. No live Overte capture has yet been validated or committed.
 
-## Install on VIRZ (after test review)
+## Install
 
 Extract the package and run `sudo ./scripts/install.sh` from the `iceServer/` directory. The script preserves an existing config and generates a random enrollment secret on first install. **Keep it private.** Use:
 
@@ -46,6 +46,8 @@ Extract the package and run `sudo ./scripts/install.sh` from the `iceServer/` di
 sudo systemctl status overte-ice
 sudo journalctl -u overte-ice -f
 ```
+
+The default installation generates a self-signed certificate for the advertised public IPv4 address. For a CA-issued certificate on a DNS hostname, follow [TLS certificate setup](docs/tls-certificates.md).
 
 ## Registration
 
@@ -55,7 +57,7 @@ See `docs/enrollment.md`. New directories call `/v1/enroll` using the shared boo
 
 - The PHP Directory Server includes `php bin/ice-sync.php enroll|sync` and a queued scheduler worker (`php bin/scheduler.php`). Enrollment is a deliberate one-time CLI operation. After enrollment, domain creation/deletion and periodic domain heartbeats queue reconciliation locally; a cron/scheduler invocation is required to execute the worker. HTTP requests never call the ICE control API directly.
 - The bootstrap secret is an administrative enrollment capability; it must not be publicly shared.
-- TLS currently uses a self-signed IP-address certificate requiring explicit trust. The final certificate/trust model remains to be improved before production.
+- The default installer certificate is self-signed and requires explicit trust. CA-issued certificates are supported when the configured certificate and key match the HTTPS hostname used by the Directory Server.
 - Go ICE interoperability has not been tested live against unmodified Overte binaries.
 - Domain key cache invalidation and service restart behavior need production-style testing.
 - Upgrading an already-installed 0.2.0-dev instance requires a configuration migration; the installer preserves existing configuration. Do not install over 0.2.0-dev without reviewing `/etc/overte-ice/config.json`.
