@@ -6,6 +6,11 @@ import (
 )
 
 const (
+	// MaxDatagramSize bounds the complete UDP payload accepted by the ICE
+	// application protocol. Current Overte ICE heartbeat/query/peer packets
+	// are far smaller; larger datagrams are rejected rather than truncated.
+	MaxDatagramSize = 2048
+
 	// Packet type identifiers are the numeric values of PacketTypeEnum::Value
 	// in Overte's libraries/networking/src/udt/PacketHeaders.h.
 	PacketICEServerPeerInformation byte = 22
@@ -34,6 +39,9 @@ type Packet struct {
 // by ICE: unreliable, unfragmented, unobfuscated NL packets. It intentionally
 // does not implement Overte's reliable transport or control-packet protocol.
 func DecodeDatagram(b []byte) (Packet, error) {
+	if len(b) > MaxDatagramSize {
+		return Packet{}, errors.New("ICE datagram exceeds maximum size")
+	}
 	if len(b) < 6 {
 		return Packet{}, errors.New("datagram too short")
 	}

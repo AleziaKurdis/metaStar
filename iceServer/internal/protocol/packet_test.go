@@ -80,3 +80,13 @@ func TestRejectUnsupportedUDTDataFlags(t *testing.T) {
 		}
 	}
 }
+
+func TestRejectOversizedDatagram(t *testing.T) {
+	// The valid packet prefix must not be accepted if the original UDP
+	// datagram contains additional bytes beyond the protocol size limit.
+	b := EncodeDatagram(1, PacketICEServerHeartbeat, VersionICEHeartbeat, []byte{0xaa})
+	b = append(b, make([]byte, MaxDatagramSize+1-len(b))...)
+	if _, err := DecodeDatagram(b); err == nil {
+		t.Fatal("expected oversized ICE datagram rejection")
+	}
+}

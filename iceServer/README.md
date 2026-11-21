@@ -15,7 +15,7 @@ No Apache/Nginx is required. Firewall/router rules must cover both protocols. Th
 
 The Go packet type identifiers now match the zero-based values in Overte's `PacketTypeEnum::Value`. Numeric golden tests protect these values.
 
-The Go implementation handles the unreliable, unfragmented and unobfuscated Overte UDP data-frame subset used by ICE heartbeats, queries, acknowledgements, denials and peer-information responses. It also refreshes a cached domain public key when heartbeat signature verification fails, matching the original ICE server's key-rotation behavior. It does not implement Overte's full reliable UDT transport. See `docs/protocol-notes.md` for the source audit and remaining validation work.
+The Go implementation handles the unreliable, unfragmented and unobfuscated Overte UDP data-frame subset used by ICE heartbeats, queries, acknowledgements, denials and peer-information responses. It reads complete UDP payloads before enforcing a 2,048-byte ICE datagram limit, so oversized packets cannot be silently truncated into valid-looking prefixes. It also refreshes a cached domain public key when heartbeat signature verification fails, matching the original ICE server's key-rotation behavior. It does not implement Overte's full reliable UDT transport. See `docs/protocol-notes.md` for the source audit and remaining validation work.
 
 The server tests exercise the two-peer UDP information exchange locally, including a simulated change to the target peer's NAT-mapped source endpoint. This is still **not proof of end-to-end interoperability**. Real Domain Server and ICE client tests and real Internet NAT hole-punch tests are still required.
 
