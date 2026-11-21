@@ -408,7 +408,7 @@ See [docs/ice-registration.md](../docs/ice-registration.md) for configuration, f
 
 - Configure `ice_control_url`, `ice_control_ca_file`, and a stable `ice_directory_id` in `config/local.php`.
 - Run `OVERTE_ICE_ENROLLMENT_SECRET=... php bin/ice-sync.php enroll` once; the issued per-directory token is saved in the private storage directory.
-- Domain heartbeats enqueue ICE synchronization when `ice_sync_interval_seconds` has elapsed (default: 300 seconds). They do not contact ICE or wait for network operations.
+- Domain creation and deletion enqueue an immediate ICE registry reconciliation; domain heartbeats also enqueue periodic synchronization when `ice_sync_interval_seconds` has elapsed (default: 300 seconds). These HTTP requests do not contact ICE or wait for network operations.
 - Run `php bin/scheduler.php` from cron (for example, every minute) to process queued tasks and retry temporary failures. The existing `php bin/ice-sync.php sync` command remains available for manual synchronization.
 - TLS verification is mandatory. The ICE certificate must be explicitly trusted; the integration never disables certificate checks.
 - `default_ice_server_url` remains the separate client-advertised ICE address.

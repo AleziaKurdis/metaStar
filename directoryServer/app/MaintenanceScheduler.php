@@ -20,6 +20,20 @@ final class MaintenanceScheduler
      */
     public static function onDomainHeartbeat(JsonStore $store, array $config, ?int $now = null): array
     {
+        return self::queueIceSync($store, $config, $now, false);
+    }
+
+    /**
+     * Queue an immediate reconciliation after the Directory Server's domain
+     * registry changes. Creation/deletion must not wait for the heartbeat interval.
+     */
+    public static function onDomainRegistryChanged(JsonStore $store, array $config, ?int $now = null): array
+    {
+        return self::queueIceSync($store, $config, $now, true);
+    }
+
+    private static function queueIceSync(JsonStore $store, array $config, ?int $now, bool $force): array
+    {
         $now ??= time();
         $storagePath = rtrim((string)($config['storage_path'] ?? ''), DIRECTORY_SEPARATOR);
         $tokenFile = $storagePath . DIRECTORY_SEPARATOR . 'ice-registration.json';
@@ -37,7 +51,7 @@ final class MaintenanceScheduler
         }
 
         $lastSuccess = (int)($state['lastSuccess'] ?? 0);
-        if ($lastSuccess > 0 && ($now - $lastSuccess) < $interval) {
+        if (!$force && $lastSuccess > 0 && ($now - $lastSuccess) < $interval) {
             return ['queued' => false, 'reason' => 'not_due'];
         }
 
