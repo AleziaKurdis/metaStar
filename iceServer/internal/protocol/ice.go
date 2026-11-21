@@ -67,9 +67,12 @@ func ParseHeartbeat(payload []byte) (Heartbeat, error) {
 }
 func ParseQuery(payload []byte) (Query, error) {
 	r := qtstream.Reader{B: payload}
-	id, _, e := r.UUID()
+	id, senderUUID, e := r.UUID()
 	if e != nil {
 		return Query{}, e
+	}
+	if !validUUIDBytes(senderUUID) {
+		return Query{}, errors.New("invalid sender UUID in ICE query")
 	}
 	pub, praw, e := r.Socket()
 	if e != nil {
@@ -79,15 +82,30 @@ func ParseQuery(payload []byte) (Query, error) {
 	if e != nil {
 		return Query{}, e
 	}
-	target, _, e := r.UUID()
+	target, targetUUID, e := r.UUID()
 	if e != nil {
 		return Query{}, e
+	}
+	if !validUUIDBytes(targetUUID) {
+		return Query{}, errors.New("invalid target UUID in ICE query")
 	}
 	if r.Off != len(payload) {
 		return Query{}, errors.New("unexpected trailing bytes in ICE query")
 	}
 	return Query{SenderID: id, Public: Socket{pub, praw}, Local: Socket{local, lraw}, TargetID: target}, nil
 }
+// validUUIDBytes checks the UUID version and RFC variant used by Overte's
+// generated peer identifiers. It accepts versions 1 through 8 so newer UUID
+// versions remain valid without accepting nil or malformed identifiers.
+func validUUIDBytes(id []byte) bool {
+	if len(id) != 16 {
+		return false
+	}
+	version := id[6] >> 4
+	variant := id[8] >> 6
+	return version >= 1 && version <= 8 && variant == 2
+}
+
 func PeerPayload(p Peer) ([]byte, error) {
 	id, e := qtstream.UUIDBytes(p.ID)
 	if e != nil {
