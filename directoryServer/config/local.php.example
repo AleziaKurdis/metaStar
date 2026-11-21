@@ -4,6 +4,12 @@ return [
     'metaverse_nick_name' => 'My Metaverse',
     'metaverse_server_url' => 'https://metaverse.example.com',
     'default_ice_server_url' => 'https://ice.example.com',
+    // Separate HTTPS control endpoint used by the Directory Server CLI sync.
+    'ice_control_url' => 'https://203.0.113.10:7337',
+    // PEM CA/certificate file that explicitly trusts the ICE HTTPS certificate.
+    'ice_control_ca_file' => '/secure/path/ice-server-ca.crt',
+    // Stable unique ID for this Directory Service; do not change after enrollment.
+    'ice_directory_id' => 'my-overte-directory',
     'storage_path' => dirname(__DIR__) . '/data',
     'base_admin_account' => 'admin',
     // Generate with: php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"

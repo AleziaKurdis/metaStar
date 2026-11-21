@@ -1,0 +1,34 @@
+name: PHP Directory Server checks
+
+on:
+  push:
+    paths:
+      - "directoryServer/**"
+      - ".github/workflows/php-tests.yml"
+  pull_request:
+    paths:
+      - "directoryServer/**"
+      - ".github/workflows/php-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: curl, openssl
+          coverage: none
+      - name: Run Directory Server tests
+        working-directory: directoryServer
+        run: |
+          for test in tests/*.php; do
+            echo "Running $test"
+            php -d zend.assertions=1 -d assert.exception=1 "$test"
+          done
