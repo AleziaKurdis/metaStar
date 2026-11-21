@@ -65,6 +65,38 @@ func TestEnsureCertificateGeneratesIPCertificateAndPreservesPair(t *testing.T) {
 	}
 }
 
+func TestEnsureCertificateRejectsIncompletePairWithoutOverwriting(t *testing.T) {
+	for _, existing := range []string{"certificate", "private key"} {
+		t.Run(existing+" only", func(t *testing.T) {
+			dir := t.TempDir()
+			certFile := filepath.Join(dir, "tls.crt")
+			keyFile := filepath.Join(dir, "tls.key")
+			path := certFile
+			missing := keyFile
+			if existing == "private key" {
+				path, missing = keyFile, certFile
+			}
+			original := []byte("operator-managed "+existing)
+			if err := os.WriteFile(path, original, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := ensureCertificate(certFile, keyFile, "203.0.113.42"); err == nil {
+				t.Fatal("expected incomplete certificate/key pair to be rejected")
+			}
+			after, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(after) != string(original) {
+				t.Fatal("existing TLS file was overwritten")
+			}
+			if _, err := os.Lstat(missing); !os.IsNotExist(err) {
+				t.Fatalf("missing TLS counterpart should not be generated, stat error = %v", err)
+			}
+		})
+	}
+}
+
 func TestLoadTLSRejectsMismatchedCertificateAndKey(t *testing.T) {
 	dir := t.TempDir()
 	certFile := filepath.Join(dir, "tls.crt")

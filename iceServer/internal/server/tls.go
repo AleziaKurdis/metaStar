@@ -19,10 +19,21 @@ import (
 )
 
 func ensureCertificate(certFile, keyFile, advertiseIP string) error {
-	if _, e := os.Stat(certFile); e == nil {
-		if _, e = os.Stat(keyFile); e == nil {
-			return nil
-		}
+	_, certErr := os.Lstat(certFile)
+	_, keyErr := os.Lstat(keyFile)
+	certExists := certErr == nil
+	keyExists := keyErr == nil
+	if certErr != nil && !os.IsNotExist(certErr) {
+		return fmt.Errorf("inspect TLS certificate %q: %w", certFile, certErr)
+	}
+	if keyErr != nil && !os.IsNotExist(keyErr) {
+		return fmt.Errorf("inspect TLS private key %q: %w", keyFile, keyErr)
+	}
+	if certExists && keyExists {
+		return nil
+	}
+	if certExists != keyExists {
+		return fmt.Errorf("TLS certificate/key pair is incomplete: both %q and %q must exist, or neither", certFile, keyFile)
 	}
 	if e := os.MkdirAll(filepath.Dir(certFile), 0750); e != nil {
 		return e
