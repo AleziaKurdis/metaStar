@@ -195,6 +195,37 @@ func (s *Store) Enroll(id, base string, domains []string) (string, error) {
 	}
 	return token, nil
 }
+// Recover rotates the credential for an already-enrolled directory. The caller
+// must authenticate with the ICE Server's enrollment secret. Directory
+// ownership is deliberately left unchanged so recovery cannot alter routing.
+func (s *Store) Recover(id string) (string, error) {
+	id = strings.TrimSpace(id)
+	if !regexp.MustCompile("^[A-Za-z0-9._-]{1,128}$").MatchString(id) {
+		return "", errors.New("invalid directory identifier")
+	}
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	token := hex.EncodeToString(b)
+	hash := sha256.Sum256([]byte(token))
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.data.Directories[id]; !ok {
+		return "", errors.New("directory is not enrolled")
+	}
+	previousHash, hadCredential := s.data.CredentialHashes[id]
+	if !hadCredential {
+		return "", errors.New("directory registration credential is missing")
+	}
+	s.data.CredentialHashes[id] = hex.EncodeToString(hash[:])
+	if err := s.saveLocked(); err != nil {
+		s.data.CredentialHashes[id] = previousHash
+		return "", err
+	}
+	return token, nil
+}
 func (s *Store) TokenValid(id, token string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

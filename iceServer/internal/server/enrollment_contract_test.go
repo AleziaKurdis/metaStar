@@ -40,6 +40,8 @@ func callContractHandler(srv *Server, method, path, token string, payload []byte
 		srv.handleEnroll(response, req)
 	case "/v1/register":
 		srv.handleRegister(response, req)
+	case "/v1/recover":
+		srv.handleRecover(response, req)
 	default:
 		panic("unexpected contract path")
 	}
@@ -249,3 +251,54 @@ func TestRegistrationContractResponseIsJSON(t *testing.T) {
 		t.Fatalf("response is not valid JSON: %s", fmt.Sprint(response.Body.String()))
 	}
 }
+
+func TestRegistrationCredentialRecovery(t *testing.T) {
+	srv, secret := newContractServer(t)
+	enrolled := callContractHandler(srv, http.MethodPost, "/v1/enroll", secret,
+		contractPayload("directory-one", "https://directory.example", contractDomainOne))
+	if enrolled.Code != http.StatusOK {
+		t.Fatalf("enrollment failed: %d %s", enrolled.Code, enrolled.Body.String())
+	}
+	var first struct {
+		RegistrationToken string `json:"registration_token"`
+	}
+	if err := json.Unmarshal(enrolled.Body.Bytes(), &first); err != nil {
+		t.Fatal(err)
+	}
+
+	recoveryBody, _ := json.Marshal(map[string]string{"directory_id": "directory-one"})
+	if response := callContractHandler(srv, http.MethodPost, "/v1/recover", "wrong-secret", recoveryBody); response.Code != http.StatusUnauthorized {
+		t.Fatalf("wrong recovery secret: got %d, want 401", response.Code)
+	}
+	if response := callContractHandler(srv, http.MethodPost, "/v1/recover", secret, []byte(`{"directory_id":"unknown"}`)); response.Code != http.StatusConflict {
+		t.Fatalf("unknown directory recovery: got %d, want 409", response.Code)
+	}
+
+	recovered := callContractHandler(srv, http.MethodPost, "/v1/recover", secret, recoveryBody)
+	if recovered.Code != http.StatusOK {
+		t.Fatalf("recovery failed: %d %s", recovered.Code, recovered.Body.String())
+	}
+	var second struct {
+		Status string `json:"status"`
+		RegistrationToken string `json:"registration_token"`
+	}
+	if err := json.Unmarshal(recovered.Body.Bytes(), &second); err != nil {
+		t.Fatal(err)
+	}
+	if second.Status != "success" || !regexp.MustCompile(`^[a-f0-9]{64}$`).MatchString(second.RegistrationToken) {
+		t.Fatalf("invalid recovery response: %#v", second)
+	}
+	if second.RegistrationToken == first.RegistrationToken {
+		t.Fatal("recovery did not rotate the registration token")
+	}
+	if srv.registry.TokenValid("directory-one", first.RegistrationToken) {
+		t.Fatal("previous registration token remained valid after recovery")
+	}
+	if !srv.registry.TokenValid("directory-one", second.RegistrationToken) {
+		t.Fatal("recovered registration token was not accepted")
+	}
+	if owner, ok := srv.registry.Owner(contractDomainOne); !ok || owner.ID != "directory-one" {
+		t.Fatalf("recovery changed domain ownership: %#v %v", owner, ok)
+	}
+}
+

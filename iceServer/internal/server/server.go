@@ -89,6 +89,7 @@ func (s *Server) Run(ctx context.Context) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.HandleFunc("POST /v1/enroll", s.handleEnroll)
+	mux.HandleFunc("POST /v1/recover", s.handleRecover)
 	mux.HandleFunc("POST /v1/register", s.handleRegister)
 	mux.HandleFunc("PUT /v1/register", s.handleRegister)
 	s.httpServer = &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: time.Duration(s.cfg.ReadTimeout) * time.Second, WriteTimeout: time.Duration(s.cfg.WriteTimeout) * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
@@ -145,6 +146,34 @@ func (s *Server) handleEnroll(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Directory %q enrolled with %d domains", req.DirectoryID, len(req.Domains))
 	writeJSON(w, 200, map[string]string{"status": "success", "registration_token": token})
 }
+// handleRecover rotates a lost registration token for an existing directory.
+// It is intentionally protected by the same out-of-band enrollment secret as
+// initial enrollment; the endpoint does not create directories or alter owners.
+func (s *Server) handleRecover(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	var req struct {
+		DirectoryID string `json:"directory_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, apiResponse{Status: "error", Message: "invalid JSON"})
+		return
+	}
+	provided := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+	if !secureEqual(provided, s.cfg.EnrollmentToken) {
+		writeJSON(w, http.StatusUnauthorized, apiResponse{Status: "error", Message: "invalid enrollment secret"})
+		return
+	}
+	s.ownershipMu.Lock()
+	token, err := s.registry.Recover(req.DirectoryID)
+	s.ownershipMu.Unlock()
+	if err != nil {
+		writeJSON(w, http.StatusConflict, apiResponse{Status: "error", Message: err.Error()})
+		return
+	}
+	log.Printf("Registration credential recovered for directory %q", req.DirectoryID)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "success", "registration_token": token})
+}
+
 func secureEqual(a, b string) bool {
 	if len(a) != len(b) || len(a) == 0 {
 		return false
