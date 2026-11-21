@@ -199,13 +199,15 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
-	if !s.registry.TokenValid(req.DirectoryID, token) {
+	s.ownershipMu.Lock()
+	previousOwners := s.registry.Snapshot().Owners
+	authorized, e := s.registry.RegisterAuthorized(req.DirectoryID, token, req.BaseURL, req.Domains)
+	if !authorized {
+		s.ownershipMu.Unlock()
 		writeJSON(w, http.StatusUnauthorized, apiResponse{Status: "error", Message: "invalid registration credentials"})
 		return
 	}
-	s.ownershipMu.Lock()
-	previousOwners := s.registry.Snapshot().Owners
-	if e := s.registry.Register(req.DirectoryID, req.BaseURL, req.Domains); e != nil {
+	if e != nil {
 		s.ownershipMu.Unlock()
 		writeJSON(w, http.StatusConflict, apiResponse{Status: "error", Message: e.Error()})
 		return

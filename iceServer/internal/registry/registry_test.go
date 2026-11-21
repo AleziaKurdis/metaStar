@@ -273,3 +273,30 @@ func TestLoadRejectsInvalidPersistedDomainUUID(t *testing.T) {
 		t.Fatal("registry with an invalid domain UUID was loaded")
 	}
 }
+
+func TestRegisterAuthorizedRejectsRotatedCredential(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "registry.json")
+	s, err := New(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	domainID := "4784f9dc-388c-47c3-8855-373d22f31ff4"
+	oldToken, err := s.Enroll("directory-one", "https://one.example", []string{domainID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Recover("directory-one"); err != nil {
+		t.Fatal(err)
+	}
+	authorized, err := s.RegisterAuthorized("directory-one", oldToken, "https://attacker.example", nil)
+	if err != nil {
+		t.Fatalf("stale credential should be rejected as unauthorized, not as a registration error: %v", err)
+	}
+	if authorized {
+		t.Fatal("registration accepted a credential that had already been rotated")
+	}
+	owner, ok := s.Owner(domainID)
+	if !ok || owner.BaseURL != "https://one.example" {
+		t.Fatalf("stale credential changed directory state: %#v, exists=%v", owner, ok)
+	}
+}
