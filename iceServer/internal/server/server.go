@@ -74,23 +74,23 @@ func enqueueDatagram(queue chan inboundDatagram, data []byte, addr *net.UDPAddr)
 }
 
 type Server struct {
-	cfg         config.Config
-	registry    *registry.Store
-	ownershipMu sync.RWMutex
-	peersMu     sync.RWMutex
-	peers       map[string]protocol.Peer
-	keysMu      sync.RWMutex
-	keys        map[string]*rsa.PublicKey
-	pending     map[string]keyRequestOwner
-	keyRetries  map[string]keyRetryState
+	cfg                 config.Config
+	registry            *registry.Store
+	ownershipMu         sync.RWMutex
+	peersMu             sync.RWMutex
+	peers               map[string]protocol.Peer
+	keysMu              sync.RWMutex
+	keys                map[string]*rsa.PublicKey
+	pending             map[string]keyRequestOwner
+	keyRetries          map[string]keyRetryState
 	keyRefreshCooldowns map[string]keyRefreshCooldownState
-	sequences   *sequenceTracker
-	udp         *net.UDPConn
-	httpServer  *http.Server
-	keyClient        *http.Client
-	keyFetchSlots    chan struct{}
-	queryLimits      *queryLimiter
-	heartbeatDenials *heartbeatDenialLimiter
+	sequences           *sequenceTracker
+	udp                 *net.UDPConn
+	httpServer          *http.Server
+	keyClient           *http.Client
+	keyFetchSlots       chan struct{}
+	queryLimits         *queryLimiter
+	heartbeatDenials    *heartbeatDenialLimiter
 }
 
 type registerRequest struct {
