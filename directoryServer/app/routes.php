@@ -6,6 +6,7 @@ use OvertePHP\Auth;
 use OvertePHP\DomainService;
 use OvertePHP\AccountActivity;
 use OvertePHP\ProfileService;
+use OvertePHP\MaintenanceScheduler;
 
 /** @var Router $router */
 require __DIR__ . '/domain-compat-routes.php';
@@ -357,6 +358,8 @@ $router->add('PUT', '/api/v1/domains/{domainId}', static function (array $params
         $changes['lastSenderKey'] = $_SERVER['REMOTE_ADDR'];
     }
     $updated = $store->update('domains', $domain['id'], $changes) ?? $domain;
+    // Queue due cross-service work locally; the heartbeat response never waits on ICE.
+    MaintenanceScheduler::onDomainHeartbeat($store, $config);
     Http::success(['domain' => DomainService::info($updated, $store, $config)]);
 });
 

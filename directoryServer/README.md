@@ -234,6 +234,7 @@ php tests/debug-logging.php
 php tests/domains.php
 php tests/places.php
 php tests/maintenance.php
+php tests/maintenance-scheduler.php
 php tests/account-activity.php
 php tests/profiles.php
 php tests/social.php
@@ -248,7 +249,7 @@ php -d zend.assertions=1 -d assert.exception=1 tests/account-management.php
 
 This is an incremental replacement, not yet a complete Iamus implementation. The domain and place APIs are practical compatibility subsets. Some edge-case visibility filtering, actual email delivery on the target host, complete monitoring/administration coverage, and broader live-client compatibility still need validation.
 
-Other work remaining includes broader live-client compatibility validation, expanded monitoring, and dashboard management tools. The maintenance process is deliberately compatible with ordinary PHP request hosting and can also be run by cron; it is not a long-running PHP daemon.
+Other work remaining includes broader live-client compatibility validation, expanded monitoring, and dashboard management tools. The maintenance process is deliberately compatible with ordinary PHP request hosting and can also be run by cron; it is not a long-running PHP daemon. Domain heartbeats can enqueue due cross-service tasks, while a separate CLI worker performs network operations outside the heartbeat response.
 
 Iamus wraps ordinary API responses as `{"status":"success","data":{}}`; the OAuth endpoint returns its OAuth body directly. This distinction is retained.
 
@@ -407,7 +408,8 @@ See [docs/ice-registration.md](../docs/ice-registration.md) for configuration, f
 
 - Configure `ice_control_url`, `ice_control_ca_file`, and a stable `ice_directory_id` in `config/local.php`.
 - Run `OVERTE_ICE_ENROLLMENT_SECRET=... php bin/ice-sync.php enroll` once; the issued per-directory token is saved in the private storage directory.
-- Run `php bin/ice-sync.php sync` periodically (for example, every five minutes with cron).
+- Domain heartbeats enqueue ICE synchronization when `ice_sync_interval_seconds` has elapsed (default: 300 seconds). They do not contact ICE or wait for network operations.
+- Run `php bin/scheduler.php` from cron (for example, every minute) to process queued tasks and retry temporary failures. The existing `php bin/ice-sync.php sync` command remains available for manual synchronization.
 - TLS verification is mandatory. The ICE certificate must be explicitly trusted; the integration never disables certificate checks.
 - `default_ice_server_url` remains the separate client-advertised ICE address.
 
