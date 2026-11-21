@@ -35,7 +35,7 @@ type Server struct {
 	keys       map[string]*rsa.PublicKey
 	pending    map[string]keyRequestOwner
 	seqMu      sync.Mutex
-	sendSeq    map[string]uint32
+	sequences   *sequenceTracker
 	udp        *net.UDPConn
 	httpServer *http.Server
 	keyClient  *http.Client
@@ -57,7 +57,7 @@ func New(cfg config.Config) (*Server, error) {
 	if e != nil {
 		return nil, e
 	}
-	return &Server{cfg: cfg, registry: r, peers: map[string]protocol.Peer{}, keys: map[string]*rsa.PublicKey{}, pending: map[string]keyRequestOwner{}, sendSeq: map[string]uint32{}, queryLimits: newQueryLimiter(), keyClient: &http.Client{Timeout: 8 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+	return &Server{cfg: cfg, registry: r, peers: map[string]protocol.Peer{}, keys: map[string]*rsa.PublicKey{}, pending: map[string]keyRequestOwner{}, sequences: newSequenceTracker(), queryLimits: newQueryLimiter(), keyClient: &http.Client{Timeout: 8 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if req.URL.Scheme != "https" || len(via) > 0 && !strings.EqualFold(req.URL.Host, via[0].URL.Host) {
 			return http.ErrUseLastResponse
 		}
@@ -322,11 +322,13 @@ func (s *Server) sendSimple(addr *net.UDPAddr, typ byte) {
 	s.sendPacket(addr, typ, protocol.VersionICEStandard, nil)
 }
 func (s *Server) sendPacket(addr *net.UDPAddr, typ, version byte, payload []byte) {
-	key := addr.String()
-	s.seqMu.Lock()
-	s.sendSeq[key] = (s.sendSeq[key] + 1) & ((1 << 27) - 1)
-	seq := s.sendSeq[key]
-	s.seqMu.Unlock()
+	seq, ok := s.sequences.next(addr.String(), time.Now())
+	if !ok {
+		// Preserve sequence continuity for tracked destinations. When the
+		// bounded tracker is full, do not send to a new destination until
+		// an idle entry expires rather than evicting an active counter.
+		return
+	}
 	_, e := s.udp.WriteToUDP(protocol.EncodeDatagram(seq, typ, version, payload), addr)
 	if e != nil {
 		log.Printf("send UDP packet to %s: %v", addr, e)

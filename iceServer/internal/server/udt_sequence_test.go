@@ -21,15 +21,13 @@ func TestSendPacketUsesPerDestinationSequenceNumbers(t *testing.T) {
 	defer secondDestination.Close()
 
 	server := &Server{
-		udp:     serverSocket,
-		sendSeq: make(map[string]uint32),
+		udp:       serverSocket,
+		sequences: newSequenceTracker(),
 	}
 
 	_ = firstDestination.SetReadDeadline(time.Now().Add(2 * time.Second))
 	_ = secondDestination.SetReadDeadline(time.Now().Add(2 * time.Second))
 
-	// Overte keeps one unreliable sequence counter per destination SockAddr.
-	// Different packet types sent to the same destination share that counter.
 	server.sendPacket(firstDestination.LocalAddr().(*net.UDPAddr), protocol.PacketICEServerHeartbeatACK, protocol.VersionICEStandard, nil)
 	server.sendPacket(firstDestination.LocalAddr().(*net.UDPAddr), protocol.PacketICEServerPeerInformation, protocol.VersionICEStandard, []byte{0xa1})
 	server.sendPacket(secondDestination.LocalAddr().(*net.UDPAddr), protocol.PacketICEServerHeartbeatDenied, protocol.VersionICEStandard, nil)
@@ -60,16 +58,13 @@ func TestSendPacketUsesPerDestinationSequenceNumbers(t *testing.T) {
 		}
 	}
 
-	// The first destination starts at 1 and increments across packet types.
 	assertPacket(firstDestination, 1, protocol.PacketICEServerHeartbeatACK, nil)
 	assertPacket(firstDestination, 2, protocol.PacketICEServerPeerInformation, []byte{0xa1})
 	assertPacket(firstDestination, 3, protocol.PacketICEServerPeerInformation, []byte{0xa2})
-
-	// A different destination has an independent counter that also starts at 1.
 	assertPacket(secondDestination, 1, protocol.PacketICEServerHeartbeatDenied, nil)
 }
 
-func TestSendPacketSequenceNumberWrapsAt27Bits(t *testing.T) {
+func TestSendPacketDropsNewDestinationWhenSequenceStateIsFull(t *testing.T) {
 	serverSocket, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0})
 	if err != nil {
 		t.Fatal(err)
@@ -78,30 +73,24 @@ func TestSendPacketSequenceNumberWrapsAt27Bits(t *testing.T) {
 
 	destination := listenSequenceTestUDP(t)
 	defer destination.Close()
-	_ = destination.SetReadDeadline(time.Now().Add(2 * time.Second))
-
-	const sequenceMaximum = (1 << 27) - 1
-	server := &Server{
-		udp: serverSocket,
-		sendSeq: map[string]uint32{
-			destination.LocalAddr().String(): sequenceMaximum,
-		},
+	server := &Server{udp: serverSocket, sequences: newSequenceTracker()}
+	now := time.Now()
+	for i := 0; i < sequenceMaxTargets; i++ {
+		server.sequences.destinations[net.JoinHostPort("192.0.2.1", stringPort(i))] =
+			destinationSequence{sequence: 4, lastSent: now}
 	}
-
+	_ = destination.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 	server.sendPacket(destination.LocalAddr().(*net.UDPAddr), protocol.PacketICEServerHeartbeatACK, protocol.VersionICEStandard, nil)
-
 	buf := make([]byte, 2048)
-	n, _, err := destination.ReadFromUDP(buf)
-	if err != nil {
-		t.Fatal(err)
+	if _, _, err := destination.ReadFromUDP(buf); err == nil {
+		t.Fatal("packet to an untracked destination should be dropped at capacity")
+	} else if netErr, ok := err.(net.Error); !ok || !netErr.Timeout() {
+		t.Fatalf("unexpected read error: %v", err)
 	}
-	packet, err := protocol.DecodeDatagram(buf[:n])
-	if err != nil {
-		t.Fatal(err)
-	}
-	if packet.Sequence != 0 {
-		t.Fatalf("sequence after 27-bit wrap = %d, want 0", packet.Sequence)
-	}
+}
+
+func stringPort(value int) string {
+	return fmt.Sprintf("%d", value)
 }
 
 func listenSequenceTestUDP(t *testing.T) *net.UDPConn {
