@@ -1,4 +1,4 @@
-# metaStar ICE Server — Go 0.3.5-dev
+# metaStar ICE Server — Go 0.3.6-dev
 
 Standalone Go ICE service for Ubuntu 24.04 x86_64. Designed for one ICE server to serve multiple independently operated Directory Services without manual per-directory configuration on the ICE host.
 
@@ -22,6 +22,8 @@ The server tests now exercise the full two-peer UDP information exchange locally
 The outgoing UDP sender also follows Overte's unreliable UDT sequence rules: counters start at 1, are independent per destination, are shared across packet types for that destination and wrap at 27 bits. Regression tests protect these details and the decoder's rejection of unsupported UDT flags.
 
 When a Directory Service synchronizes its complete domain list, peers whose UUID ownership changed are evicted immediately rather than remaining queryable until the normal five-second heartbeat timeout. In-flight public-key fetches are also discarded if ownership changes before they complete.
+
+Registry changes now roll back in-memory ownership data when the atomic registry-file save fails. First-time enrollment stores the Directory Service record and its credential hash in one file write, avoiding a partially enrolled entry.
 
 ## Install on VIRZ (after test review)
 
