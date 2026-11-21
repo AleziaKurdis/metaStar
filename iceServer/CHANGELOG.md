@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.8-dev
+
+- Bound outbound denial responses for syntactically valid heartbeats from unknown domain UUIDs with a process-wide token bucket (50 responses/second, burst of 100).
+- Keep registered-domain heartbeat ACKs outside the denial budget so legitimate domains sharing a NAT are not penalized.
+- Added deterministic limiter tests and documented that this controls response amplification, not inbound packet-processing cost.
+
 ## 0.3.7-dev
 
 - Added a dependency-free packet capture inspection command for UDP payloads exported by tshark.
