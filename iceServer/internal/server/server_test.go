@@ -255,3 +255,147 @@ func TestHeartbeatRefreshesCachedKeyAfterSignatureFailure(t *testing.T) {
 		t.Fatalf("expected ACK after key refresh, got %d", ack.Type)
 	}
 }
+
+
+func TestRequestKeyFetchConcurrencyIsBounded(t *testing.T) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	der, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	started := make(chan string, 3)
+	release := make(chan struct{}, 3)
+	var mu sync.Mutex
+	active, maxActive := 0, 0
+	ds := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		active++
+		if active > maxActive {
+			maxActive = active
+		}
+		mu.Unlock()
+
+		started <- r.URL.Path
+		<-release
+
+		mu.Lock()
+		active--
+		mu.Unlock()
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status": "success",
+			"data": map[string]string{"public_key": base64.StdEncoding.EncodeToString(der)},
+		})
+	}))
+	defer ds.Close()
+
+	cfg := config.Config{
+		ListenAddress: "127.0.0.1",
+		Port: 17339,
+		DataFile: filepath.Join(t.TempDir(), "registry.json"),
+		EnrollmentToken: "012345678901234567890123456789012345678901234567",
+	}
+	srv, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv.keyClient = ds.Client()
+	// Use a small capacity so the test can exercise saturation deterministically.
+	srv.keyFetchSlots = make(chan struct{}, 2)
+
+	domainIDs := []string{
+		"4784f9dc-388c-47c3-8855-373d22f31ff4",
+		"11111111-2222-4333-8444-555555555555",
+		"22222222-3333-4333-8444-555555555555",
+	}
+	if err := srv.registry.Register("test-directory", ds.URL, domainIDs); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		// Unblock any handler still waiting if an assertion fails.
+		for i := 0; i < cap(release); i++ {
+			select {
+			case release <- struct{}{}:
+			default:
+				return
+			}
+		}
+	}()
+
+	for _, id := range domainIDs[:2] {
+		dir, ok := srv.registry.Owner(id)
+		if !ok {
+			t.Fatalf("missing owner for %s", id)
+		}
+		srv.requestKey(dir, id)
+	}
+	for i := 0; i < 2; i++ {
+		select {
+		case <-started:
+		case <-time.After(2 * time.Second):
+			t.Fatal("expected two key fetches to start")
+		}
+	}
+
+	thirdDirectory, _ := srv.registry.Owner(domainIDs[2])
+	srv.requestKey(thirdDirectory, domainIDs[2])
+	select {
+	case <-started:
+		t.Fatal("third key fetch started while both slots were occupied")
+	case <-time.After(100 * time.Millisecond):
+	}
+	srv.keysMu.RLock()
+	_, queued := srv.pending[domainIDs[2]]
+	srv.keysMu.RUnlock()
+	if queued {
+		t.Fatal("a lookup that could not acquire a slot must not be marked pending")
+	}
+
+	// Free one slot, then retry the third domain as its next heartbeat would.
+	release <- struct{}{}
+	deadline := time.Now().Add(2 * time.Second)
+	for len(srv.keyFetchSlots) != 1 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if len(srv.keyFetchSlots) != 1 {
+		t.Fatal("first key fetch did not release its concurrency slot")
+	}
+	srv.requestKey(thirdDirectory, domainIDs[2])
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("third key fetch did not start after a slot became available")
+	}
+
+	// Let the remaining requests finish and verify all three keys were loaded.
+	release <- struct{}{}
+	release <- struct{}{}
+	deadline = time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		allLoaded := true
+		for _, id := range domainIDs {
+			if srv.getKey(id) == nil {
+				allLoaded = false
+				break
+			}
+		}
+		if allLoaded {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	for _, id := range domainIDs {
+		if srv.getKey(id) == nil {
+			t.Fatalf("public key for %s was not loaded", id)
+		}
+	}
+	mu.Lock()
+	observedMax := maxActive
+	mu.Unlock()
+	if observedMax > cap(srv.keyFetchSlots) {
+		t.Fatalf("observed %d concurrent key fetches, limit is %d", observedMax, cap(srv.keyFetchSlots))
+	}
+}

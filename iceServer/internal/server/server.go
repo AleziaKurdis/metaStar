@@ -31,6 +31,8 @@ type keyRetryState struct {
 	nextAttempt time.Time
 }
 
+const maxConcurrentKeyFetches = 32
+
 type Server struct {
 	cfg         config.Config
 	registry    *registry.Store
@@ -44,8 +46,9 @@ type Server struct {
 	sequences   *sequenceTracker
 	udp         *net.UDPConn
 	httpServer  *http.Server
-	keyClient   *http.Client
-	queryLimits *queryLimiter
+	keyClient      *http.Client
+	keyFetchSlots  chan struct{}
+	queryLimits    *queryLimiter
 }
 
 type registerRequest struct {
@@ -63,7 +66,7 @@ func New(cfg config.Config) (*Server, error) {
 	if e != nil {
 		return nil, e
 	}
-	return &Server{cfg: cfg, registry: r, peers: map[string]protocol.Peer{}, keys: map[string]*rsa.PublicKey{}, pending: map[string]keyRequestOwner{}, keyRetries: map[string]keyRetryState{}, sequences: newSequenceTracker(), queryLimits: newQueryLimiter(), keyClient: &http.Client{Timeout: 8 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+	return &Server{cfg: cfg, registry: r, peers: map[string]protocol.Peer{}, keys: map[string]*rsa.PublicKey{}, pending: map[string]keyRequestOwner{}, keyRetries: map[string]keyRetryState{}, sequences: newSequenceTracker(), queryLimits: newQueryLimiter(), keyFetchSlots: make(chan struct{}, maxConcurrentKeyFetches), keyClient: &http.Client{Timeout: 8 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if req.URL.Scheme != "https" || len(via) > 0 && !strings.EqualFold(req.URL.Host, via[0].URL.Host) {
 			return http.ErrUseLastResponse
 		}
@@ -405,22 +408,34 @@ func keyFetchRetryDelay(failures uint) time.Duration {
 }
 
 func (s *Server) requestKey(dir registry.Directory, id string) {
+	// Do not create an unbounded number of goroutines or outbound HTTPS
+	// requests when heartbeats arrive for many uncached registered domains.
+	// If all slots are busy, the next heartbeat can retry this lookup.
+	select {
+	case s.keyFetchSlots <- struct{}{}:
+	default:
+		return
+	}
+
 	requestOwner := keyRequestOwner{directoryID: dir.ID, baseURL: dir.BaseURL}
 	now := time.Now()
 
 	s.keysMu.Lock()
 	if pendingOwner, ok := s.pending[id]; ok && pendingOwner == requestOwner {
 		s.keysMu.Unlock()
+		<-s.keyFetchSlots
 		return
 	}
 	if retry, ok := s.keyRetries[id]; ok && retry.owner == requestOwner && now.Before(retry.nextAttempt) {
 		s.keysMu.Unlock()
+		<-s.keyFetchSlots
 		return
 	}
 	s.pending[id] = requestOwner
 	s.keysMu.Unlock()
 
 	go func() {
+		defer func() { <-s.keyFetchSlots }()
 		key, err := protocol.FetchPublicKey(s.keyClient, dir, id)
 		if err != nil {
 			s.ownershipMu.RLock()
