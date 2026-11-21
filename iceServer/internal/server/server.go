@@ -224,11 +224,17 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 func (s *Server) readUDP() error {
-	buf := make([]byte, 2048)
+	// Read the largest possible UDP payload so ReadFromUDP cannot silently
+	// truncate an oversized datagram into a valid-looking ICE packet prefix.
+	// The protocol decoder then enforces the much smaller application limit.
+	buf := make([]byte, 65535)
 	for {
 		n, addr, e := s.udp.ReadFromUDP(buf)
 		if e != nil {
 			return e
+		}
+		if n > protocol.MaxDatagramSize {
+			continue
 		}
 		data := append([]byte(nil), buf[:n]...)
 		s.handleDatagram(data, addr)

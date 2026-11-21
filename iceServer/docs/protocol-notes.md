@@ -46,7 +46,7 @@ Overte's `udt::Socket::writePacket()` increments `_unreliableSequenceNumbers[soc
 
 The sequence field is 27 bits (`0x07FFFFFF`). Overte's `SequenceNumber::operator++()` wraps from `0x07FFFFFF` to `0`. The Go sender mirrors this with a counter per destination UDP address, shared by ACK, denial and peer-information responses. Regression tests cover the initial value, counter sharing, destination separation and wraparound.
 
-The sequence field is written as a little-endian 32-bit word on the supported little-endian Overte hosts. For ICE's unreliable, unfragmented, unobfuscated data packets, all five flag bits above bit 26 remain clear. The Go decoder rejects frames with any of those flags set.
+The sequence field is written as a little-endian 32-bit word on the supported little-endian Overte hosts. For ICE's unreliable, unfragmented, unobfuscated data packets, all five flag bits above bit 26 remain clear. The Go decoder rejects frames with any of those flags set. It also rejects complete UDP payloads larger than 2,048 bytes. The socket receive loop uses a buffer large enough for the maximum UDP payload before applying that limit; this avoids accepting a valid-looking prefix of a datagram silently truncated by a smaller receive buffer. The limit is intentionally generous relative to the source-reviewed ICE heartbeat, query and peer-information payloads.
 
 ### Why a full reliable UDT implementation is not required for this ICE subset
 
