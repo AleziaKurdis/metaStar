@@ -64,12 +64,23 @@ func New(path string) (*Store, error) {
 func (s *Store) rebuildOwners() error {
 	owners := make(map[string]string)
 	for id, d := range s.data.Directories {
+		if id == "" || d.ID != id {
+			return fmt.Errorf("directory registry key %q does not match saved directory ID %q", id, d.ID)
+		}
+		base, err := url.Parse(d.BaseURL)
+		if err != nil || base.Scheme != "https" || base.Host == "" || base.Hostname() == "" ||
+			base.User != nil || base.RawQuery != "" || base.Fragment != "" {
+			return fmt.Errorf("directory %q has an invalid or insecure base_url %q", id, d.BaseURL)
+		}
 		for _, domain := range d.Domains {
 			domain = strings.ToLower(strings.TrimSpace(domain))
 			if !validUUIDPattern.MatchString(domain) {
 				return fmt.Errorf("directory %q contains invalid domain UUID %q", id, domain)
 			}
 			if previousOwner, exists := owners[domain]; exists {
+				if previousOwner == id {
+					return fmt.Errorf("domain %s is listed more than once by directory %q", domain, id)
+				}
 				return fmt.Errorf("domain %s is listed by both directory %q and directory %q", domain, previousOwner, id)
 			}
 			owners[domain] = id
