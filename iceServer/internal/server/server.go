@@ -25,6 +25,12 @@ type keyRequestOwner struct {
 	baseURL     string
 }
 
+type keyRetryState struct {
+	owner       keyRequestOwner
+	failures    uint
+	nextAttempt time.Time
+}
+
 type Server struct {
 	cfg         config.Config
 	registry    *registry.Store
@@ -34,6 +40,7 @@ type Server struct {
 	keysMu      sync.RWMutex
 	keys        map[string]*rsa.PublicKey
 	pending     map[string]keyRequestOwner
+	keyRetries  map[string]keyRetryState
 	sequences   *sequenceTracker
 	udp         *net.UDPConn
 	httpServer  *http.Server
@@ -56,7 +63,7 @@ func New(cfg config.Config) (*Server, error) {
 	if e != nil {
 		return nil, e
 	}
-	return &Server{cfg: cfg, registry: r, peers: map[string]protocol.Peer{}, keys: map[string]*rsa.PublicKey{}, pending: map[string]keyRequestOwner{}, sequences: newSequenceTracker(), queryLimits: newQueryLimiter(), keyClient: &http.Client{Timeout: 8 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+	return &Server{cfg: cfg, registry: r, peers: map[string]protocol.Peer{}, keys: map[string]*rsa.PublicKey{}, pending: map[string]keyRequestOwner{}, keyRetries: map[string]keyRetryState{}, sequences: newSequenceTracker(), queryLimits: newQueryLimiter(), keyClient: &http.Client{Timeout: 8 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if req.URL.Scheme != "https" || len(via) > 0 && !strings.EqualFold(req.URL.Host, via[0].URL.Host) {
 			return http.ErrUseLastResponse
 		}
@@ -342,24 +349,35 @@ func (s *Server) sendPacket(addr *net.UDPAddr, typ, version byte, payload []byte
 // ownershipMu for writing so heartbeat and query handling cannot race the update.
 func (s *Server) evictPeersForOwnershipChanges(previousOwners map[string]string) {
 	currentOwners := s.registry.Snapshot().Owners
-	var evicted []string
+	changed := make(map[string]struct{})
+	for id, previousOwner := range previousOwners {
+		if currentOwners[id] != previousOwner {
+			changed[id] = struct{}{}
+		}
+	}
+	for id, currentOwner := range currentOwners {
+		if previousOwners[id] != currentOwner {
+			changed[id] = struct{}{}
+		}
+	}
+	if len(changed) == 0 {
+		return
+	}
 
 	s.peersMu.Lock()
-	for id := range s.peers {
-		if previousOwners[id] != currentOwners[id] {
-			delete(s.peers, id)
-			evicted = append(evicted, id)
-		}
+	for id := range changed {
+		delete(s.peers, id)
 	}
 	s.peersMu.Unlock()
 
-	if len(evicted) > 0 {
-		s.keysMu.Lock()
-		for _, id := range evicted {
-			delete(s.keys, id)
-		}
-		s.keysMu.Unlock()
+	// Keys and retry state belong to a specific Directory Service owner.
+	// Clear both even if the domain has not yet become an active peer.
+	s.keysMu.Lock()
+	for id := range changed {
+		delete(s.keys, id)
+		delete(s.keyRetries, id)
 	}
+	s.keysMu.Unlock()
 }
 
 func (s *Server) getKey(id string) *rsa.PublicKey {
@@ -367,44 +385,92 @@ func (s *Server) getKey(id string) *rsa.PublicKey {
 	defer s.keysMu.RUnlock()
 	return s.keys[id]
 }
+func keyFetchRetryDelay(failures uint) time.Duration {
+	delay := time.Second
+	for attempt := uint(1); attempt < failures && delay < 30*time.Second; attempt++ {
+		delay *= 2
+	}
+	if delay > 30*time.Second {
+		return 30 * time.Second
+	}
+	return delay
+}
+
 func (s *Server) requestKey(dir registry.Directory, id string) {
 	requestOwner := keyRequestOwner{directoryID: dir.ID, baseURL: dir.BaseURL}
+	now := time.Now()
+
 	s.keysMu.Lock()
 	if pendingOwner, ok := s.pending[id]; ok && pendingOwner == requestOwner {
 		s.keysMu.Unlock()
 		return
 	}
-	// A request from a previous owner must not block the current owner.
-	// Its completion will only clear this entry if it still owns the marker.
+	if retry, ok := s.keyRetries[id]; ok && retry.owner == requestOwner && now.Before(retry.nextAttempt) {
+		s.keysMu.Unlock()
+		return
+	}
 	s.pending[id] = requestOwner
 	s.keysMu.Unlock()
+
 	go func() {
-		defer func() {
+		key, err := protocol.FetchPublicKey(s.keyClient, dir, id)
+		if err != nil {
+			s.ownershipMu.RLock()
+			currentOwner, stillOwned := s.registry.Owner(id)
+			ownerMatches := stillOwned && currentOwner.ID == dir.ID && currentOwner.BaseURL == dir.BaseURL
 			s.keysMu.Lock()
 			if pendingOwner, ok := s.pending[id]; ok && pendingOwner == requestOwner {
 				delete(s.pending, id)
+				if ownerMatches {
+					retry := s.keyRetries[id]
+					if retry.owner != requestOwner {
+						retry = keyRetryState{owner: requestOwner}
+					}
+					retry.failures++
+					delay := keyFetchRetryDelay(retry.failures)
+					retry.nextAttempt = time.Now().Add(delay)
+					s.keyRetries[id] = retry
+					log.Printf("could not retrieve public key for %s from %s: %v (retry in %s)", id, dir.ID, err, delay)
+				} else {
+					delete(s.keyRetries, id)
+					log.Printf("discarded failed public key lookup for domain %s after Directory Service ownership changed", id)
+				}
 			}
 			s.keysMu.Unlock()
-		}()
-		key, e := protocol.FetchPublicKey(s.keyClient, dir, id)
-		if e != nil {
-			log.Printf("could not retrieve public key for %s from %s: %v", id, dir.ID, e)
+			s.ownershipMu.RUnlock()
 			return
 		}
+
 		s.ownershipMu.RLock()
 		currentOwner, stillOwned := s.registry.Owner(id)
 		if !stillOwned || currentOwner.ID != dir.ID || currentOwner.BaseURL != dir.BaseURL {
 			s.ownershipMu.RUnlock()
+			s.keysMu.Lock()
+			if pendingOwner, ok := s.pending[id]; ok && pendingOwner == requestOwner {
+				delete(s.pending, id)
+			}
+			if retry, ok := s.keyRetries[id]; ok && retry.owner == requestOwner {
+				delete(s.keyRetries, id)
+			}
+			s.keysMu.Unlock()
 			log.Printf("discarded stale public key response for domain %s (directory ownership changed)", id)
 			return
 		}
+
 		s.keysMu.Lock()
 		s.keys[id] = key
+		if pendingOwner, ok := s.pending[id]; ok && pendingOwner == requestOwner {
+			delete(s.pending, id)
+		}
+		if retry, ok := s.keyRetries[id]; ok && retry.owner == requestOwner {
+			delete(s.keyRetries, id)
+		}
 		s.keysMu.Unlock()
 		s.ownershipMu.RUnlock()
 		log.Printf("loaded RSA public key for domain %s (directory %s)", id, dir.ID)
 	}()
 }
+
 func (s *Server) expirePeers(ctx context.Context) {
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
