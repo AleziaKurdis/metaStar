@@ -8,20 +8,22 @@ Add these values to `config/local.php`:
 
 ```php
 'metaverse_server_url' => 'https://directory.example.org',
-'ice_control_url' => 'https://203.0.113.10:7337',
-'ice_control_ca_file' => '/secure/path/ice-server-ca.crt',
+'ice_control_url' => 'https://ice.example.org:7337',
+'ice_control_ca_file' => '/etc/ssl/certs/ca-certificates.crt',
 'ice_directory_id' => 'my-overte-directory',
 ```
 
 - `metaverse_server_url` is the public HTTPS base URL of this Directory Server. The ICE service uses it to fetch domain public keys.
-- `ice_control_url` is the ICE HTTPS control API origin. It is **not** the same as `default_ice_server_url`, which is the address advertised to Overte clients and Domain Servers.
-- `ice_control_ca_file` must be a readable PEM CA/certificate file that trusts the ICE HTTPS certificate. TLS peer and hostname verification remain enabled. Never work around trust errors by disabling verification.
+- `ice_control_url` is the ICE HTTPS control API origin. It is **not** the same as `default_ice_server_url`, which is the address advertised to Overte clients and Domain Servers. It may use a DNS hostname with a CA-issued certificate, independently of the public IPv4 address advertised for UDP.
+- `ice_control_ca_file` must be a readable PEM CA/certificate file that trusts the ICE HTTPS certificate. On Ubuntu, the system CA bundle is normally `/etc/ssl/certs/ca-certificates.crt`; use the appropriate bundle path for the Directory Server host. TLS peer and hostname verification remain enabled. Never work around trust errors by disabling verification.
 - `ice_directory_id` is a stable unique identifier. Do not change it after enrollment.
-- Keep `config/local.php`, the certificate file, and the `data/ice-registration.json` token file private. The token file is created with mode 0600.
+- Keep `config/local.php`, any private CA file, and the `data/ice-registration.json` token file private. The token file is created with mode 0600.
+
+For certificate installation and renewal, see the [ICE TLS certificate guide](../iceServer/docs/tls-certificates.md).
 
 ## First-time enrollment
 
-Copy the ICE server certificate securely to the Directory Server host. Then set the bootstrap secret only in the shell environment and enroll once:
+Set the bootstrap secret only in the shell environment and enroll once:
 
 ```sh
 export OVERTE_ICE_ENROLLMENT_SECRET='THE_SECRET_PRINTED_DURING_ICE_INSTALL'
@@ -56,6 +58,5 @@ The worker processes pending tasks only. It is safe to invoke every minute; it e
 - Enrollment remains a deliberate one-time CLI operation; it never runs automatically during web requests.
 - After enrollment, domain creation/deletion enqueue immediate ICE reconciliation, and Domain Server heartbeats enqueue periodic sync work. A cron invocation of `bin/scheduler.php` is required to execute queued work; without a worker, it remains pending.
 - It does not change the ICE address advertised to Overte; configure `default_ice_server_url` separately to the correct public ICE address.
-- The ICE service's current self-signed IP certificate requires explicit secure distribution and trust configuration.
 - If the ICE endpoint or certificate changes, update `ice_control_url` and `ice_control_ca_file` before running sync.
 - Never delete `data/ice-registration.json` casually. Re-enrollment with the same directory ID is intentionally rejected by the ICE service; token recovery/rotation is a separate administrative operation.
