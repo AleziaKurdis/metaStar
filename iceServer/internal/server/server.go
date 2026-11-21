@@ -30,14 +30,14 @@ type Server struct {
 	registry    *registry.Store
 	ownershipMu sync.RWMutex
 	peersMu     sync.RWMutex
-	peers      map[string]protocol.Peer
-	keysMu     sync.RWMutex
-	keys       map[string]*rsa.PublicKey
-	pending    map[string]keyRequestOwner
+	peers       map[string]protocol.Peer
+	keysMu      sync.RWMutex
+	keys        map[string]*rsa.PublicKey
+	pending     map[string]keyRequestOwner
 	sequences   *sequenceTracker
-	udp        *net.UDPConn
-	httpServer *http.Server
-	keyClient  *http.Client
+	udp         *net.UDPConn
+	httpServer  *http.Server
+	keyClient   *http.Client
 	queryLimits *queryLimiter
 }
 
