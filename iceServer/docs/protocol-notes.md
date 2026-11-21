@@ -61,7 +61,7 @@ The UDT socket sends control packets through its own internal control-packet pat
 
 This conclusion is based on the reviewed call sites. It should still be verified with real packet captures from Overte binaries.
 
-## Heartbeat payload
+## Heartbeat payload and public-key bootstrap
 
 The Domain Server writes a Qt `QDataStream` payload containing:
 
@@ -70,7 +70,11 @@ The Domain Server writes a Qt `QDataStream` payload containing:
 3. Local `SockAddr` (QHostAddress + port)
 4. Signature as a `QByteArray`
 
-The signature covers the serialized bytes of items 1–3, before the signature byte-array field. The original ICE Server verifies RSA/SHA-256. When the key is missing, it requests the public key from the owning Directory Service and denies that heartbeat; a subsequent heartbeat can succeed after the key has been loaded. If a cached key fails signature verification, the original ICE Server requests the key again. The Go implementation now mirrors this key-rotation behavior, deduplicating concurrent refresh requests while one is pending.
+The signature covers the serialized bytes of items 1–3, before the signature byte-array field. The original ICE Server verifies RSA/SHA-256. When the key is missing, it requests the public key from the owning Directory Service and denies that heartbeat; a subsequent heartbeat can succeed after the key has been loaded. If a cached key fails signature verification, the original ICE Server requests the key again.
+
+MetaStar intentionally differs in its response during this asynchronous lookup: it sends `ICEServerHeartbeatACK` when a key is missing or a cached key fails verification and a refresh is requested. This is a liveness ACK only. The heartbeat is **not** admitted to the peer registry until a later heartbeat verifies successfully with the fetched public key. This avoids triggering the unmodified Domain Server's heartbeat-denial/keypair-regeneration path while the key lookup is in flight. The behavior is covered by server tests, but still requires confirmation against unmodified live Overte binaries.
+
+MetaStar deduplicates concurrent key refresh requests and applies retry backoff after failed Directory Service lookups.
 
 ## Qt SockAddr wire serialization
 

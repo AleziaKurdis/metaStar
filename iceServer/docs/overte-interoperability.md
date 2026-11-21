@@ -49,11 +49,14 @@ Run each case with unmodified Overte binaries and preserve the client/server log
 | Case | Action | Evidence to record |
 |---|---|---|
 | Domain heartbeat | Start a test Domain Server configured for the test ICE endpoint | Outbound heartbeat type/version, ICE-side receipt, ACK or denial, and Domain Server log |
-| Key bootstrap | Start with an empty ICE public-key cache | Initial denial while the key is fetched, Directory Service request, then acceptance of a subsequent valid heartbeat |
+| Key bootstrap | Start with an empty ICE public-key cache | First heartbeat receives a liveness ACK while the Directory Service key lookup runs; confirm the domain is **not** admitted yet; after the key is fetched, a later validly signed heartbeat is ACKed and the peer becomes queryable |
+| Key rotation | Change the test Domain Server keypair while the ICE service has the previous public key cached | First heartbeat with the new signature receives a liveness ACK while the owning Directory Service key is refreshed; verify that the stale-key heartbeat does not create/update an active peer; a later heartbeat signed by the fetched key is accepted |
 | Client query | Connect an unmodified Overte client to a test domain | Query type/version, query target UUID, and both peer-information datagrams |
 | Two-peer exchange | Connect two test peers/domains and request peer information | Each side receives the other's advertised public/local socket information |
 | Endpoint rebinding | Change the target peer's observed UDP source endpoint, then query it again | Reverse peer-information response goes to the latest observed endpoint, not the superseded one |
 | Internet NAT | Repeat with two genuinely separate NATs and ordinary Internet paths | Packet captures on both sides and successful application-level connectivity; localhost simulation is not sufficient |
+
+**Important heartbeat behavior:** the upstream Overte ICE server denies a heartbeat while it fetches a missing or replacement public key. MetaStar deliberately responds with `ICEServerHeartbeatACK` during that asynchronous lookup so an unmodified Domain Server does not interpret temporary key bootstrap as an unavailable ICE endpoint and rotate its keypair. This ACK confirms endpoint liveness only; MetaStar must not add the domain to its peer registry until a later heartbeat signature verifies against the fetched key. The live test must verify both sides of that distinction.
 
 For each packet, compare the observed type and version with `iceServer/internal/protocol/packet.go` and `iceServer/docs/protocol-notes.md`. Compare payload field order and byte order with the corresponding Qt stream notes. Investigate every discrepancy before treating a case as passed.
 
