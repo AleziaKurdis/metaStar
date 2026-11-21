@@ -20,6 +20,11 @@ import (
 	"github.com/overte-org/overte-ice-server/internal/registry"
 )
 
+type keyRequestOwner struct {
+	directoryID string
+	baseURL     string
+}
+
 type Server struct {
 	cfg         config.Config
 	registry    *registry.Store
@@ -28,7 +33,7 @@ type Server struct {
 	peers      map[string]protocol.Peer
 	keysMu     sync.RWMutex
 	keys       map[string]*rsa.PublicKey
-	pending    map[string]bool
+	pending    map[string]keyRequestOwner
 	seqMu      sync.Mutex
 	sendSeq    map[string]uint32
 	udp        *net.UDPConn
@@ -51,7 +56,7 @@ func New(cfg config.Config) (*Server, error) {
 	if e != nil {
 		return nil, e
 	}
-	return &Server{cfg: cfg, registry: r, peers: map[string]protocol.Peer{}, keys: map[string]*rsa.PublicKey{}, pending: map[string]bool{}, sendSeq: map[string]uint32{}, keyClient: &http.Client{Timeout: 8 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+	return &Server{cfg: cfg, registry: r, peers: map[string]protocol.Peer{}, keys: map[string]*rsa.PublicKey{}, pending: map[string]keyRequestOwner{}, sendSeq: map[string]uint32{}, keyClient: &http.Client{Timeout: 8 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if req.URL.Scheme != "https" || len(via) > 0 && !strings.EqualFold(req.URL.Host, via[0].URL.Host) {
 			return http.ErrUseLastResponse
 		}
@@ -316,15 +321,24 @@ func (s *Server) getKey(id string) *rsa.PublicKey {
 	return s.keys[id]
 }
 func (s *Server) requestKey(dir registry.Directory, id string) {
+	requestOwner := keyRequestOwner{directoryID: dir.ID, baseURL: dir.BaseURL}
 	s.keysMu.Lock()
-	if s.pending[id] {
+	if pendingOwner, ok := s.pending[id]; ok && pendingOwner == requestOwner {
 		s.keysMu.Unlock()
 		return
 	}
-	s.pending[id] = true
+	// A request from a previous owner must not block the current owner.
+	// Its completion will only clear this entry if it still owns the marker.
+	s.pending[id] = requestOwner
 	s.keysMu.Unlock()
 	go func() {
-		defer func() { s.keysMu.Lock(); delete(s.pending, id); s.keysMu.Unlock() }()
+		defer func() {
+			s.keysMu.Lock()
+			if pendingOwner, ok := s.pending[id]; ok && pendingOwner == requestOwner {
+				delete(s.pending, id)
+			}
+			s.keysMu.Unlock()
+		}()
 		key, e := protocol.FetchPublicKey(s.keyClient, dir, id)
 		if e != nil {
 			log.Printf("could not retrieve public key for %s from %s: %v", id, dir.ID, e)
