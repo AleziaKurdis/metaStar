@@ -18,6 +18,8 @@ POST `https://PUBLIC_IP:7337/v1/register` with `Authorization: Bearer <REGISTRAT
 
 A second enrollment attempt with the same directory ID is rejected. Register calls cannot claim a UUID owned by another directory. Enrollment and sync are authenticated; this is not anonymous registration.
 
+Each successful enrollment or synchronization compares the previous and new UUID ownership mappings. Active peer records are immediately removed for UUIDs whose owner changed, including UUIDs removed from a Directory Service's complete list or assigned to a first-time owner. Heartbeat acceptance and query handling are synchronized with these changes, and an in-flight public-key response is discarded if its Directory Service owner or base URL is no longer current.
+
 ## TLS trust
 
 The ICE service generates a self-signed certificate for its public IPv4 address. The Directory Service must securely obtain the ICE certificate and configure its HTTP client to trust it. Changing public IP regenerates the certificate and requires redistributing trust. A CA-issued certificate or a stronger enrollment trust design may replace this before production.
