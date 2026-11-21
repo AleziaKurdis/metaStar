@@ -52,7 +52,7 @@ func enqueueDatagram(queue chan inboundDatagram, data []byte, addr *net.UDPAddr)
 	packet := inboundDatagram{
 		data: append([]byte(nil), data...),
 		addr: &net.UDPAddr{
-			IP: append(net.IP(nil), addr.IP...),
+			IP:   append(net.IP(nil), addr.IP...),
 			Port: addr.Port,
 			Zone: addr.Zone,
 		},
@@ -78,9 +78,9 @@ type Server struct {
 	sequences   *sequenceTracker
 	udp         *net.UDPConn
 	httpServer  *http.Server
-	keyClient      *http.Client
-	keyFetchSlots  chan struct{}
-	queryLimits    *queryLimiter
+	keyClient        *http.Client
+	keyFetchSlots    chan struct{}
+	queryLimits      *queryLimiter
 	heartbeatDenials *heartbeatDenialLimiter
 }
 
