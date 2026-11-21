@@ -90,18 +90,41 @@ func (s *Store) rebuildOwners() error {
 	return nil
 }
 func (s *Store) saveLocked() error {
-	if e := os.MkdirAll(filepath.Dir(s.path), 0750); e != nil {
-		return e
+	dir := filepath.Dir(s.path)
+	if err := os.MkdirAll(dir, 0750); err != nil {
+		return err
 	}
-	b, e := json.MarshalIndent(s.data, "", "  ")
-	if e != nil {
-		return e
+	b, err := json.MarshalIndent(s.data, "", "  ")
+	if err != nil {
+		return err
 	}
-	tmp := s.path + ".tmp"
-	if e = os.WriteFile(tmp, b, 0640); e != nil {
-		return e
+
+	// Keep the temporary file beside the registry so rename remains atomic.
+	// CreateTemp also avoids following a pre-existing .tmp symlink and gives
+	// concurrent service instances distinct temporary names.
+	tmp, err := os.CreateTemp(dir, ".registry-*.tmp")
+	if err != nil {
+		return err
 	}
-	return os.Rename(tmp, s.path)
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+
+	if err = tmp.Chmod(0640); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if _, err = tmp.Write(b); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err = tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err = tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, s.path)
 }
 func (s *Store) Register(id, base string, domains []string) error {
 	id = strings.TrimSpace(id)

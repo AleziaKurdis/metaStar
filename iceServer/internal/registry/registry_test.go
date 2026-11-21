@@ -342,3 +342,32 @@ func TestLoadRejectsMismatchedPersistedDirectoryID(t *testing.T) {
 		t.Fatal("registry with a mismatched Directory Service ID was loaded")
 	}
 }
+
+
+func TestSaveUsesPrivateUniqueTemporaryFileAndCleansItUp(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "registry.json")
+	s, err := New(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Register("directory-one", "https://one.example", nil); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0640 {
+		t.Fatalf("registry file mode = %04o, want 0640", got)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "registry.json" {
+		t.Fatalf("temporary registry files were not cleaned up: %v", entries)
+	}
+}
