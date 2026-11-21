@@ -7,9 +7,9 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
-	"math/big"
 	"strings"
 	"testing"
 
@@ -187,17 +187,14 @@ func TestFetchPublicKeyRejectsNonOverteRSAParameters(t *testing.T) {
 
 	tests := []struct {
 		name string
-		key  *rsa.PublicKey
 		der  []byte
 	}{
 		{
 			name: "1024-bit modulus",
-			key:  &weakKey.PublicKey,
 			der:  x509.MarshalPKCS1PublicKey(&weakKey.PublicKey),
 		},
 		{
 			name: "unexpected exponent",
-			key:  wrongExponent,
 			der:  mustMarshalPKIXPublicKey(t, wrongExponent),
 		},
 	}
