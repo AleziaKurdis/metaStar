@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.4-dev
+
+- Documented Overte's per-destination unreliable UDT sequence-number behavior.
+- Added regression tests for first sequence value, counter sharing across packet types, independent destination counters and 27-bit wraparound.
+- Confirmed the ICE sender leaves the UDT control, reliable, message and obfuscation flags clear.
+
 ## 0.3.3-dev
 
 - Added two-peer UDP exchange coverage for both directions of ICE peer-information delivery.

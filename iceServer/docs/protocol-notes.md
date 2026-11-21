@@ -40,6 +40,14 @@ The 32-bit word contains:
 
 For an unfragmented ICE data packet, the first four bytes are followed by the one-byte network packet type and one-byte version. ICE packet types are in `getNonSourcedPackets()`, so they have no local-node-ID or MD5-verification fields in the NLPacket header.
 
+### Unreliable sequence numbers
+
+Overte's `udt::Socket::writePacket()` increments `_unreliableSequenceNumbers[sockAddr]` before sending. The map is keyed by destination `SockAddr`, and a default-constructed `SequenceNumber` starts at zero, so the first outgoing packet to a destination uses sequence **1**. All outgoing unreliable packet types sent to that same destination share the counter; another destination starts its own counter at **1**.
+
+The sequence field is 27 bits (`0x07FFFFFF`). Overte's `SequenceNumber::operator++()` wraps from `0x07FFFFFF` to `0`. The Go sender mirrors this with a counter per destination UDP address, shared by ACK, denial and peer-information responses. Regression tests cover the initial value, counter sharing, destination separation and wraparound.
+
+The sequence field is written as a little-endian 32-bit word on the supported little-endian Overte hosts. For ICE's unreliable, unfragmented, unobfuscated data packets, all five flag bits above bit 26 remain clear. The Go decoder rejects frames with any of those flags set.
+
 ### Why a full reliable UDT implementation is not required for this ICE subset
 
 The inspected send paths create/send ICE heartbeats, queries, ACK/denial responses and peer-information responses as unreliable, unfragmented, unobfuscated packets:

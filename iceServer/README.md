@@ -19,6 +19,8 @@ The Go implementation handles the unreliable, unfragmented and unobfuscated Over
 
 The server tests now exercise the full two-peer UDP information exchange locally, including a simulated change to the target peer's NAT-mapped source endpoint. This is still **not proof of end-to-end interoperability**. Real Domain Server and ICE client tests and real Internet NAT hole-punch tests are still required.
 
+The outgoing UDP sender also follows Overte's unreliable UDT sequence rules: counters start at 1, are independent per destination, are shared across packet types for that destination and wrap at 27 bits. Regression tests protect these details and the decoder's rejection of unsupported UDT flags.
+
 ## Install on VIRZ (after test review)
 
 Extract the package and run `sudo ./scripts/install.sh` from the `iceServer/` directory. The script preserves an existing config and generates a random enrollment secret on first install. **Keep it private.** Use:
