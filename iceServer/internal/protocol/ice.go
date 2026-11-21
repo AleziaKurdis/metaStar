@@ -43,9 +43,12 @@ type Peer struct {
 
 func ParseHeartbeat(payload []byte) (Heartbeat, error) {
 	r := qtstream.Reader{B: payload}
-	id, _, e := r.UUID()
+	id, uuidBytes, e := r.UUID()
 	if e != nil {
 		return Heartbeat{}, e
+	}
+	if !validUUIDBytes(uuidBytes) {
+		return Heartbeat{}, errors.New("invalid domain UUID in ICE heartbeat")
 	}
 	pub, praw, e := r.Socket()
 	if e != nil {
