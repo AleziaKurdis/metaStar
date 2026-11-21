@@ -1,4 +1,4 @@
-# metaStar ICE Server — Go 0.3.7-dev
+# metaStar ICE Server — Go 0.3.8-dev
 
 Standalone Go ICE service for Ubuntu 24.04 x86_64. Designed for one ICE server to serve multiple independently operated Directory Services without manual per-directory configuration on the ICE host.
 
