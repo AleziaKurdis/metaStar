@@ -53,19 +53,30 @@ func New(path string) (*Store, error) {
 		if s.data.CredentialHashes == nil {
 			s.data.CredentialHashes = map[string]string{}
 		}
-		s.rebuildOwners()
+		if err := s.rebuildOwners(); err != nil {
+			return nil, fmt.Errorf("invalid persisted directory ownership: %w", err)
+		}
 	} else if !os.IsNotExist(e) {
 		return nil, e
 	}
 	return s, nil
 }
-func (s *Store) rebuildOwners() {
-	s.data.Owners = map[string]string{}
+func (s *Store) rebuildOwners() error {
+	owners := make(map[string]string)
 	for id, d := range s.data.Directories {
 		for _, domain := range d.Domains {
-			s.data.Owners[domain] = id
+			domain = strings.ToLower(strings.TrimSpace(domain))
+			if !validUUIDPattern.MatchString(domain) {
+				return fmt.Errorf("directory %q contains invalid domain UUID %q", id, domain)
+			}
+			if previousOwner, exists := owners[domain]; exists {
+				return fmt.Errorf("domain %s is listed by both directory %q and directory %q", domain, previousOwner, id)
+			}
+			owners[domain] = id
 		}
 	}
+	s.data.Owners = owners
+	return nil
 }
 func (s *Store) saveLocked() error {
 	if e := os.MkdirAll(filepath.Dir(s.path), 0750); e != nil {
@@ -138,7 +149,20 @@ func (s *Store) registerLocked(id, base string, domains []string, credentialHash
 	if credentialHash != "" {
 		s.data.CredentialHashes[id] = credentialHash
 	}
-	s.rebuildOwners()
+	if err := s.rebuildOwners(); err != nil {
+		if hadDirectory {
+			s.data.Directories[id] = previousDirectory
+		} else {
+			delete(s.data.Directories, id)
+		}
+		if hadCredential {
+			s.data.CredentialHashes[id] = previousCredential
+		} else {
+			delete(s.data.CredentialHashes, id)
+		}
+		_ = s.rebuildOwners()
+		return err
+	}
 
 	if err := s.saveLocked(); err != nil {
 		if hadDirectory {
@@ -151,7 +175,7 @@ func (s *Store) registerLocked(id, base string, domains []string, credentialHash
 		} else {
 			delete(s.data.CredentialHashes, id)
 		}
-		s.rebuildOwners()
+		_ = s.rebuildOwners()
 		return err
 	}
 	return nil

@@ -226,3 +226,50 @@ func TestRecoverRollsBackCredentialWhenPersistenceFails(t *testing.T) {
 		t.Fatal("failed recovery invalidated the previous token")
 	}
 }
+
+func TestLoadRejectsAmbiguousPersistedDomainOwnership(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "registry.json")
+	data := `{
+		"directories": {
+			"directory-one": {
+				"id": "directory-one",
+				"base_url": "https://one.example",
+				"domains": ["4784f9dc-388c-47c3-8855-373d22f31ff4"]
+			},
+			"directory-two": {
+				"id": "directory-two",
+				"base_url": "https://two.example",
+				"domains": ["4784f9dc-388c-47c3-8855-373d22f31ff4"]
+			}
+		},
+		"owners": {},
+		"credential_hashes": {}
+	}`
+	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := New(path); err == nil {
+		t.Fatal("registry with a domain assigned to two directories was loaded")
+	}
+}
+
+func TestLoadRejectsInvalidPersistedDomainUUID(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "registry.json")
+	data := `{
+		"directories": {
+			"directory-one": {
+				"id": "directory-one",
+				"base_url": "https://one.example",
+				"domains": ["not-a-domain-uuid"]
+			}
+		},
+		"owners": {},
+		"credential_hashes": {}
+	}`
+	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := New(path); err == nil {
+		t.Fatal("registry with an invalid domain UUID was loaded")
+	}
+}
