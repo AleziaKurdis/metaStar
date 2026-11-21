@@ -71,16 +71,20 @@ func (s *Server) Run(ctx context.Context) error {
 	if e != nil {
 		return e
 	}
-	addr := fmt.Sprintf("%s:%d", s.cfg.ListenAddress, s.cfg.Port)
-	udpAddr, e := net.ResolveUDPAddr("udp4", addr)
+	udpNetwork, tcpNetwork, e := config.SocketNetworks(s.cfg.ListenAddress)
 	if e != nil {
 		return e
 	}
-	s.udp, e = net.ListenUDP("udp4", udpAddr)
+	addr := net.JoinHostPort(s.cfg.ListenAddress, fmt.Sprintf("%d", s.cfg.Port))
+	udpAddr, e := net.ResolveUDPAddr(udpNetwork, addr)
+	if e != nil {
+		return e
+	}
+	s.udp, e = net.ListenUDP(udpNetwork, udpAddr)
 	if e != nil {
 		return fmt.Errorf("bind UDP %s: %w", addr, e)
 	}
-	tcpListener, e := net.Listen("tcp4", addr)
+	tcpListener, e := net.Listen(tcpNetwork, addr)
 	if e != nil {
 		s.udp.Close()
 		return fmt.Errorf("bind TCP %s: %w", addr, e)
@@ -93,7 +97,7 @@ func (s *Server) Run(ctx context.Context) error {
 	mux.HandleFunc("POST /v1/register", s.handleRegister)
 	mux.HandleFunc("PUT /v1/register", s.handleRegister)
 	s.httpServer = &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: time.Duration(s.cfg.ReadTimeout) * time.Second, WriteTimeout: time.Duration(s.cfg.WriteTimeout) * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
-	log.Printf("Overte ICE Server listening: UDP %s and HTTPS %s", addr, addr)
+	log.Printf("Overte ICE Server listening: %s UDP and %s HTTPS on %s", udpNetwork, tcpNetwork, addr)
 	errCh := make(chan error, 2)
 	go func() { errCh <- s.readUDP() }()
 	go func() { errCh <- s.httpServer.Serve(tlsListener) }()

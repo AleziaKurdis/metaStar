@@ -10,12 +10,13 @@ reproducible protocol reference.
 
 | Overte source | Contract established by source | MetaStar implementation / coverage |
 |---|---|---|
-| `ice-server/src/IceServer.cpp` | Heartbeat verification, query routing, ACK/denial behavior, peer-information delivery, five-second peer expiry | `internal/server/server.go`; server and peer-routing tests |
+| `ice-server/src/IceServer.cpp` | Heartbeat verification, query routing, ACK/denial behavior, peer-information delivery, five-second peer expiry; defaults to `QHostAddress::AnyIPv4` but accepts a parsed `--address` value | `internal/server/server.go`; server and peer-routing tests |
 | `libraries/networking/src/NetworkPeer.cpp` | Peer-information payload order is UUID, public socket, local socket; observed heartbeat socket becomes active | `internal/protocol/ice.go`; peer-routing test |
 | `libraries/networking/src/SockAddr.cpp` | ICE socket serialization excludes socket type and writes QHostAddress followed by port | `internal/qtstream/reader.go`; Qt stream fixtures |
 | `libraries/networking/src/udt/PacketHeaders.cpp` | ICE packet IDs and packet versions | `internal/protocol/packet.go`; packet identifier/version tests |
 | `libraries/networking/src/udt/Packet.cpp` | UDT data header flags and sequence-number bit layout | `internal/protocol/packet.go`; datagram framing tests |
-| `libraries/networking/src/udt/Socket.cpp` | Unreliable sequence counter is per destination and shared across packet types | `internal/server/server.go`; sequence tests and peer-routing integration test |
+| `libraries/networking/src/udt/Socket.cpp` | Unreliable sequence counter is per destination and shared across packet types; bind delegates to `NetworkSocket` | `internal/server/server.go`; sequence tests and peer-routing integration test |
+| `libraries/networking/src/udt/NetworkSocket.cpp` | UDP bind passes the requested `QHostAddress` to Qt, allowing the ICE server to bind an IPv4 or IPv6 address | `internal/config/config.go` selects matching `udp4`/`udp6` and `tcp4`/`tcp6` listeners |
 | `libraries/networking/src/LimitedNodeList.cpp` | ICE query payload order and unreliable packet send path | `internal/protocol/ice.go`; query parsing and peer-routing tests |
 | `domain-server/src/DomainServer.cpp` | Heartbeat contains UUID and both sockets, signed before appending the signature; sent unreliably once per second | `internal/protocol/ice.go`; signed-heartbeat tests |
 | `tools/ice-client/src/ICEClientApp.cpp` | Client sends the same query structure and consumes peer-information packets | Query/peer-information source review; client live test remains outstanding |
@@ -49,3 +50,10 @@ The source review does not validate:
 
 Those remain explicit release-validation gates. Do not describe MetaStar as
 end-to-end compatible until those tests have been run.
+
+
+## Address-family behavior
+
+At the pinned source baseline, IceServer.cpp initializes its bind address to QHostAddress::AnyIPv4. If --address is supplied, it parses the supplied address with QHostAddress::setAddress() and passes that value to udt::Socket::bind(). NetworkSocket::bind() forwards the address to Qt's UDP socket bind call, so the ICE server's configured listener can be IPv4 or IPv6. The separate udt::Socket::rebind() helper resets to QHostAddress::AnyIPv4, but the ICE server path reviewed here does not call that helper.
+
+MetaStar now selects explicit Go IPv4 or IPv6 UDP and TCP listeners from listen_address, and accepts an IPv4 or IPv6 advertise_ip for the generated certificate SAN. The two configured addresses must use the same family. A process listens on one family at a time; IPv4 remains the default. This is a source-based listener comparison, not proof of live IPv6 interoperability with Overte binaries.
