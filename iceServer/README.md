@@ -53,7 +53,7 @@ See `docs/enrollment.md`. New directories call `/v1/enroll` using the shared boo
 
 ## Current limitations
 
-- The PHP Directory Server includes an explicit `php bin/ice-sync.php enroll|sync` CLI integration. It does not run automatically during web requests; operators may invoke `sync` manually or schedule it with their hosting provider's scheduler.
+- The PHP Directory Server includes `php bin/ice-sync.php enroll|sync` and a queued scheduler worker (`php bin/scheduler.php`). Enrollment is a deliberate one-time CLI operation. After enrollment, domain creation/deletion and periodic domain heartbeats queue reconciliation locally; a cron/scheduler invocation is required to execute the worker. HTTP requests never call the ICE control API directly.
 - The bootstrap secret is an administrative enrollment capability; it must not be publicly shared.
 - TLS currently uses a self-signed IP-address certificate requiring explicit trust. The final certificate/trust model remains to be improved before production.
 - Go ICE interoperability has not been tested live against unmodified Overte binaries.
