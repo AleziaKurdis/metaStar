@@ -55,7 +55,7 @@ func TestKeyFetchFailureUsesExponentialBackoff(t *testing.T) {
 		t.Fatalf("first retry delay remaining = %s, want a future time within one second", remaining)
 	}
 
-	srv.requestKey(owner, retryTestDomainID)
+	srv.requestKey(owner, retryTestDomainID, false)
 	time.Sleep(100 * time.Millisecond)
 	countMu.Lock()
 	gotRequests := requests
@@ -71,7 +71,7 @@ func TestKeyFetchFailureUsesExponentialBackoff(t *testing.T) {
 	srv.keyRetries[retryTestDomainID] = retry
 	srv.keysMu.Unlock()
 
-	srv.requestKey(owner, retryTestDomainID)
+	srv.requestKey(owner, retryTestDomainID, false)
 	waitForKeyFetchToFinish(t, srv, retryTestDomainID)
 	countMu.Lock()
 	gotRequests = requests
