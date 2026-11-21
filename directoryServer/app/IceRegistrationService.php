@@ -164,17 +164,42 @@ final class IceRegistrationService
         $json = json_encode([
             'directory_id' => $this->directoryId,
             'registration_token' => $token
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL;
         $temporary = $this->tokenFile . '.' . bin2hex(random_bytes(6)) . '.tmp';
-        if (file_put_contents($temporary, $json . PHP_EOL, LOCK_EX) === false) {
-            throw new RuntimeException('Could not write the ICE registration token file.');
+
+        // Create the temporary file under a restrictive umask, then verify the
+        // requested mode before writing any credential material.
+        $previousUmask = umask(0077);
+        $handle = @fopen($temporary, 'x');
+        if ($handle === false) {
+            umask($previousUmask);
+            throw new RuntimeException('Could not create the temporary ICE registration token file.');
         }
-        @chmod($temporary, 0600);
+
+        try {
+            if (!chmod($temporary, 0600)) {
+                throw new RuntimeException('Could not restrict permissions on the ICE registration token file.');
+            }
+            $written = fwrite($handle, $json);
+            if ($written !== strlen($json) || !fflush($handle)) {
+                throw new RuntimeException('Could not completely write the ICE registration token file.');
+            }
+        } catch (\Throwable $error) {
+            fclose($handle);
+            @unlink($temporary);
+            umask($previousUmask);
+            throw $error;
+        }
+
+        fclose($handle);
+        umask($previousUmask);
+
+        // Rename is atomic on the same filesystem and preserves the verified
+        // 0600 mode. Never report success if the secure file cannot be committed.
         if (!rename($temporary, $this->tokenFile)) {
             @unlink($temporary);
-            throw new RuntimeException('Could not securely commit the ICE registration token file.');
+            throw new RuntimeException('Could not commit the ICE registration token file.');
         }
-        @chmod($this->tokenFile, 0600);
     }
 
     private function loadToken(): string

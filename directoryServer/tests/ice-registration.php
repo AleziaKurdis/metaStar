@@ -26,6 +26,14 @@ $ids = $service->domainIds();
 assert(count($ids) === 2);
 assert($ids === ['11111111-2222-4333-8444-555555555555', '4784f9dc-388c-47c3-8855-373d22f31ff4']);
 
+$saveToken = new ReflectionMethod($service, 'saveToken');
+$saveToken->invoke($service, str_repeat('a', 64));
+$tokenPath = $dir . '/ice-registration.json';
+assert(is_file($tokenPath), 'Enrollment token should be persisted.');
+assert((fileperms($tokenPath) & 0777) === 0600, 'Enrollment token must be stored with mode 0600.');
+$tokenRecord = json_decode((string)file_get_contents($tokenPath), true);
+assert(($tokenRecord['registration_token'] ?? '') === str_repeat('a', 64));
+
 $store->insert('domains', ['id' => 'invalid-domain-id', 'name' => 'Broken']);
 $failed = false;
 try {
