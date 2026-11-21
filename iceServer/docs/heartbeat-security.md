@@ -26,3 +26,12 @@ No packet fields, packet identifiers, versions, sequence rules, heartbeat cadenc
 ## Limits
 
 The budget is per ICE process, not distributed across multiple ICE instances. It limits response amplification, not inbound bandwidth or all packet-processing work. A flood can still consume network and parsing resources before reaching the denial decision. Production deployments should use upstream network filtering and monitor real denial traffic before tuning the defaults.
+
+
+## Public-key refresh amplification
+
+A registered-domain heartbeat with an invalid signature can indicate that the Domain Server rotated its RSA keypair. MetaStar therefore retains the compatibility behavior of fetching a replacement public key from the Directory Service. However, a peer repeatedly sending invalid signatures for the same registered UUID could otherwise trigger a new outbound HTTPS lookup after every successful refresh.
+
+After a successful refresh initiated by an invalid signature, MetaStar applies a 30-second cooldown for that domain and Directory Service owner. Repeated invalid signatures during that window are still handled with the normal heartbeat ACK behavior, but do not trigger another key fetch. Initial lookups for domains with no cached key are not delayed, and failed fetches continue to use the existing exponential retry backoff. A changed Directory Service owner clears the cooldown.
+
+This is a per-domain refresh-work limit, not a heartbeat rate limit. It does not affect the normal one-second heartbeat cadence or penalize other domains sharing the same source IP. A legitimate subsequent key rotation inside the cooldown window may take up to 30 seconds to trigger another refresh.
