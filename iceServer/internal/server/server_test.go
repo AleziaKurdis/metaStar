@@ -86,8 +86,11 @@ func TestHeartbeatKeyFetchAckAndPeerQuery(t *testing.T) {
 
 	srv.handleDatagram(heartbeat, client.LocalAddr().(*net.UDPAddr))
 	first := readTestPacket(t, client)
-	if first.Type != protocol.PacketICEServerHeartbeatDenied {
-		t.Fatalf("first heartbeat should be denied while key is fetched, got %d", first.Type)
+	if first.Type != protocol.PacketICEServerHeartbeatACK {
+		t.Fatalf("heartbeat should be acknowledged while key is fetched, got %d", first.Type)
+	}
+	if _, exists := srv.peers[domainID]; exists {
+		t.Fatal("domain was admitted before its heartbeat signature could be verified")
 	}
 	deadline := time.Now().Add(3 * time.Second)
 	for srv.getKey(domainID) == nil && time.Now().Before(deadline) {
@@ -221,12 +224,15 @@ func TestHeartbeatRefreshesCachedKeyAfterSignatureFailure(t *testing.T) {
 	payload = append(payload, signature...)
 	heartbeat := protocol.EncodeDatagram(1, protocol.PacketICEServerHeartbeat, protocol.VersionICEHeartbeat, payload)
 
-	// The old cached key fails verification. The first heartbeat is denied
-	// while the server refreshes the key from the Directory Service.
+	// The old cached key fails verification. The ICE endpoint ACKs liveness
+	// while refreshing the key, without admitting the unverified heartbeat.
 	srv.handleDatagram(heartbeat, client.LocalAddr().(*net.UDPAddr))
 	denied := readTestPacket(t, client)
-	if denied.Type != protocol.PacketICEServerHeartbeatDenied {
-		t.Fatalf("expected denial while refreshing public key, got %d", denied.Type)
+	if denied.Type != protocol.PacketICEServerHeartbeatACK {
+		t.Fatalf("expected liveness ACK while refreshing public key, got %d", denied.Type)
+	}
+	if _, exists := srv.peers[domainID]; exists {
+		t.Fatal("domain was admitted with a heartbeat signed by the stale key")
 	}
 
 	deadline := time.Now().Add(3 * time.Second)
