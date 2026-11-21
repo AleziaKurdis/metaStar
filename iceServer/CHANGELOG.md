@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.7-dev
+
+- Added a dependency-free packet capture inspection command for UDP payloads exported by tshark.
+- Report decoded UDT sequence numbers, known ICE packet types, observed and expected versions, and payload lengths.
+- Added automated checks for malformed frames, unsupported UDT flags, and packet-version mismatches.
+- Documented a safe live-capture procedure and explicit interoperability test matrix; no live Overte interoperability is claimed.
+
 ## 0.3.6-dev
 
 - Roll back in-memory directory ownership and credentials when the atomic registry-file save fails.
@@ -24,7 +31,6 @@
 - Added two-peer UDP exchange coverage for both directions of ICE peer-information delivery.
 - Verified that a changed NAT source endpoint learned from a newer valid heartbeat becomes the destination for reverse peer-information delivery.
 - Documented the Go observed-address behavior against the original C++ active-socket selection.
-
 
 ## 0.3.2-dev
 
