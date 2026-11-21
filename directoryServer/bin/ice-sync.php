@@ -28,7 +28,7 @@ try {
             throw new RuntimeException('Set OVERTE_ICE_ENROLLMENT_SECRET in the shell environment for enrollment or token recovery.');
         }
         $result = $command === 'enroll' ? $service->enroll($secret) : $service->recover($secret);
-        echo "ICE enrollment succeeded; synchronized " . $result['domain_count'] . " domain(s).\n";
+        echo ($command === 'enroll' ? "ICE enrollment succeeded; synchronized " : "ICE token recovery succeeded; synchronized ") . $result['domain_count'] . " domain(s).\n";
         echo "The issued registration token was saved in the private Directory Server storage directory.\n";
     } else {
         $result = $service->sync();

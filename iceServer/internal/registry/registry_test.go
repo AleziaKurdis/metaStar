@@ -157,3 +157,72 @@ func TestDomainUUIDValidationMatchesDirectoryServer(t *testing.T) {
 		}
 	}
 }
+
+func TestRecoverRotatesCredentialAndPreservesDirectory(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "registry.json")
+	s, err := New(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	domainID := "4784f9dc-388c-47c3-8855-373d22f31ff4"
+	oldToken, err := s.Enroll("directory-one", "https://directory.example", []string{domainID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	newToken, err := s.Recover("directory-one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if oldToken == newToken {
+		t.Fatal("recovery returned the same token")
+	}
+	if s.TokenValid("directory-one", oldToken) {
+		t.Fatal("old token remains valid")
+	}
+	if !s.TokenValid("directory-one", newToken) {
+		t.Fatal("new token is not valid")
+	}
+	owner, ok := s.Owner(domainID)
+	if !ok || owner.ID != "directory-one" || owner.BaseURL != "https://directory.example" {
+		t.Fatalf("recovery changed directory ownership: %#v %v", owner, ok)
+	}
+	restarted, err := New(path)
+	if err != nil || !restarted.TokenValid("directory-one", newToken) {
+		t.Fatalf("recovered credential did not persist across restart: %v", err)
+	}
+}
+
+func TestRecoverRejectsUnknownDirectory(t *testing.T) {
+	s, err := New(filepath.Join(t.TempDir(), "registry.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Recover("not-enrolled"); err == nil {
+		t.Fatal("recovery created an unknown directory")
+	}
+}
+
+func TestRecoverRollsBackCredentialWhenPersistenceFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "registry.json")
+	s, err := New(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldToken, err := s.Enroll("directory-one", "https://directory.example", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Recover("directory-one"); err == nil {
+		t.Fatal("expected persistence failure")
+	}
+	if !s.TokenValid("directory-one", oldToken) {
+		t.Fatal("failed recovery invalidated the previous token")
+	}
+}
