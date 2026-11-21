@@ -250,7 +250,11 @@ func (s *Server) handleDatagram(data []byte, addr *net.UDPAddr) {
 		if key == nil {
 			s.requestKey(dir, hb.DomainID)
 			s.ownershipMu.RUnlock()
-			s.sendSimple(addr, protocol.PacketICEServerHeartbeatDenied)
+			// ACK confirms that this ICE endpoint is alive and should remain
+			// selected while the asynchronous identity lookup is in flight.
+			// The domain is not added to the peer registry until a later
+			// heartbeat has a signature verified against the fetched key.
+			s.sendSimple(addr, protocol.PacketICEServerHeartbeatACK)
 			return
 		}
 		if e = protocol.VerifyHeartbeat(key, hb.Signed, hb.Signature); e != nil {
@@ -259,7 +263,10 @@ func (s *Server) handleDatagram(data []byte, addr *net.UDPAddr) {
 			// Domain Server rotated its keypair. Refresh from this UUID's owner.
 			s.requestKey(dir, hb.DomainID)
 			s.ownershipMu.RUnlock()
-			s.sendSimple(addr, protocol.PacketICEServerHeartbeatDenied)
+			// A stale key may simply mean the Domain Server rotated its keypair.
+			// Keep the ICE endpoint selected while the replacement key is fetched;
+			// this ACK does not admit or register the unverified peer.
+			s.sendSimple(addr, protocol.PacketICEServerHeartbeatACK)
 			return
 		}
 		peer := protocol.Peer{ID: hb.DomainID, Public: hb.Public, Local: hb.Local, Observed: addr.String(), LastSeen: time.Now()}
