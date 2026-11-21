@@ -38,6 +38,12 @@ assert((fileperms($tokenPath) & 0777) === 0600, 'Enrollment token must be stored
 $tokenRecord = json_decode((string)file_get_contents($tokenPath), true);
 assert(($tokenRecord['registration_token'] ?? '') === str_repeat('a', 64));
 
+// Saving a recovered credential atomically replaces an earlier token file.
+$saveToken->invoke($service, str_repeat('b', 64));
+$tokenRecord = json_decode((string)file_get_contents($tokenPath), true);
+assert(($tokenRecord['registration_token'] ?? '') === str_repeat('b', 64), 'Recovery must replace the previous token.');
+assert((fileperms($tokenPath) & 0777) === 0600, 'Recovered token must remain private.');
+
 $store->insert('domains', ['id' => 'invalid-domain-id', 'name' => 'Broken']);
 $failed = false;
 try {

@@ -48,6 +48,45 @@ returned token in private storage with restrictive file permissions and must
 not log or display it. Repeating enrollment for the same directory is rejected;
 use the registration endpoint after the first successful enrollment.
 
+### Lost-token recovery
+
+`POST /v1/recover`
+
+If the ICE Server completed enrollment but the Directory Server lost the
+response or could not persist the issued token, the operator can rotate the
+credential for that already-enrolled directory. This endpoint requires the
+same out-of-band enrollment secret:
+
+```http
+Authorization: Bearer <ICE enrollment secret>
+Content-Type: application/json
+```
+
+Request JSON contains only the stable directory identifier:
+
+```json
+{
+  "directory_id": "directory-one"
+}
+```
+
+A successful response has the same token shape as enrollment. The ICE Server
+replaces the old credential hash atomically; the old registration token stops
+working. Recovery does not create a directory or change its domain ownership.
+Unknown directory IDs are rejected. If the Directory Server still cannot save
+the returned token, fix its private storage permissions and run recovery
+again; each successful recovery issues a new token.
+
+The Directory Server exposes this through:
+
+```sh
+OVERTE_ICE_ENROLLMENT_SECRET='...' php bin/ice-sync.php recover
+```
+
+The secret is read from the process environment and is not accepted as a
+command-line argument. Recovery may replace an existing local token file
+atomically, so it also repairs a lost or corrupted local credential.
+
 ### Subsequent synchronization
 
 `POST /v1/register` (also accepts `PUT /v1/register`)
@@ -97,8 +136,8 @@ A successful request returns HTTP 200 with:
 | --- | --- |
 | 200 | Enrollment or synchronization succeeded |
 | 400 | Request body is not valid JSON or exceeds the body limit |
-| 401 | Enrollment secret or registration credential is missing or invalid |
-| 409 | Directory/domain validation failed, duplicate enrollment, or a domain ownership conflict |
+| 401 | Enrollment/recovery secret or registration credential is missing or invalid |
+| 409 | Directory/domain validation failed, duplicate enrollment, unknown recovery directory, or a domain ownership conflict |
 
 Error responses use JSON with `status: "error"` and a human-readable
 `message`. Clients should treat non-200 responses as failed operations and
@@ -133,7 +172,7 @@ retain their current registration token.
 
 ## Test coverage and interoperability boundary
 
-The Go tests exercise the HTTP handler contract, credential lifecycle,
+The Go tests exercise the HTTP handler contract, enrollment and recovery credential lifecycle,
 complete-list replacement, invalid UUIDs, cross-directory ownership conflicts,
 persistence across restart, and failure responses. PHP tests exercise the
 Directory Server's UUID validation, complete sorted unique list construction,

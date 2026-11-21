@@ -12,8 +12,8 @@ if (PHP_SAPI !== 'cli') {
 require dirname(__DIR__) . '/app/bootstrap.php';
 
 $command = $argv[1] ?? '';
-if (!in_array($command, ['enroll', 'sync'], true) || count($argv) !== 2) {
-    fwrite(STDERR, "Usage: php bin/ice-sync.php enroll|sync\n");
+if (!in_array($command, ['enroll', 'recover', 'sync'], true) || count($argv) !== 2) {
+    fwrite(STDERR, "Usage: php bin/ice-sync.php enroll|recover|sync\n");
     exit(2);
 }
 
@@ -22,12 +22,12 @@ try {
     $store = new JsonStore((string)$config['storage_path']);
     $service = new IceRegistrationService($store, $config);
 
-    if ($command === 'enroll') {
+    if ($command === 'enroll' || $command === 'recover') {
         $secret = getenv('OVERTE_ICE_ENROLLMENT_SECRET');
         if (!is_string($secret) || trim($secret) === '') {
-            throw new RuntimeException('Set OVERTE_ICE_ENROLLMENT_SECRET in the shell environment before first-time enrollment.');
+            throw new RuntimeException('Set OVERTE_ICE_ENROLLMENT_SECRET in the shell environment for enrollment or token recovery.');
         }
-        $result = $service->enroll($secret);
+        $result = $command === 'enroll' ? $service->enroll($secret) : $service->recover($secret);
         echo "ICE enrollment succeeded; synchronized " . $result['domain_count'] . " domain(s).\n";
         echo "The issued registration token was saved in the private Directory Server storage directory.\n";
     } else {

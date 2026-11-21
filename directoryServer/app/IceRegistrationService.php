@@ -74,6 +74,27 @@ final class IceRegistrationService
         return ['success' => true, 'domain_count' => count($this->domainIds())];
     }
 
+    /**
+     * Recover a lost/unpersisted registration token using the ICE enrollment secret.
+     * The ICE Server rotates the token only for an already-enrolled directory.
+     */
+    public function recover(string $enrollmentSecret): array
+    {
+        $secret = trim($enrollmentSecret);
+        if ($secret === '') {
+            throw new RuntimeException('The ICE enrollment secret is empty.');
+        }
+        $response = $this->request('/v1/recover', $secret, [
+            'directory_id' => $this->directoryId
+        ]);
+        $token = (string)($response['registration_token'] ?? '');
+        if (preg_match('/^[a-f0-9]{64}$/i', $token) !== 1) {
+            throw new RuntimeException('ICE recovery response did not contain a valid registration token.');
+        }
+        $this->saveToken($token);
+        return ['success' => true, 'domain_count' => count($this->domainIds())];
+    }
+
     /** Synchronize the full current domain list using the previously issued token. */
     public function sync(): array
     {
@@ -112,9 +133,9 @@ final class IceRegistrationService
         }
     }
 
-    private function request(string $path, string $bearerToken): array
+    private function request(string $path, string $bearerToken, ?array $requestPayload = null): array
     {
-        $payload = json_encode([
+        $payload = json_encode($requestPayload ?? [
             'directory_id' => $this->directoryId,
             'base_url' => $this->directoryBaseUrl,
             'domains' => $this->domainIds()
