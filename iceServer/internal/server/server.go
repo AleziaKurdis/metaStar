@@ -34,7 +34,6 @@ type Server struct {
 	keysMu     sync.RWMutex
 	keys       map[string]*rsa.PublicKey
 	pending    map[string]keyRequestOwner
-	seqMu      sync.Mutex
 	sequences   *sequenceTracker
 	udp        *net.UDPConn
 	httpServer *http.Server
