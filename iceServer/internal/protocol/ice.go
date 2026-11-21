@@ -131,7 +131,11 @@ type publicKeyResponse struct {
 	} `json:"data"`
 }
 
-const maxPublicKeyResponseSize = 64 << 10
+const (
+	maxPublicKeyResponseSize = 64 << 10
+	overteRSAModulusBits      = 2048
+	overteRSAExponent         = 65537
+)
 
 func FetchPublicKey(client *http.Client, dir registry.Directory, domainID string) (*rsa.PublicKey, error) {
 	base, e := url.Parse(dir.BaseURL)
@@ -169,15 +173,23 @@ func FetchPublicKey(client *http.Client, dir registry.Directory, domainID string
 	if e != nil {
 		return nil, e
 	}
-	if key, e := x509.ParsePKIXPublicKey(der); e == nil {
-		if rsaKey, ok := key.(*rsa.PublicKey); ok {
-			return rsaKey, nil
-		}
+	var rsaKey *rsa.PublicKey
+	if key, parseErr := x509.ParsePKIXPublicKey(der); parseErr == nil {
+		rsaKey, _ = key.(*rsa.PublicKey)
 	}
-	if key, e := x509.ParsePKCS1PublicKey(der); e == nil {
-		return key, nil
+	if rsaKey == nil {
+		rsaKey, _ = x509.ParsePKCS1PublicKey(der)
 	}
-	return nil, errors.New("public_key is not a supported RSA DER public key")
+	if rsaKey == nil {
+		return nil, errors.New("public_key is not a supported RSA DER public key")
+	}
+	if rsaKey.N == nil || rsaKey.N.BitLen() != overteRSAModulusBits {
+		return nil, fmt.Errorf("public_key must use a %d-bit RSA modulus", overteRSAModulusBits)
+	}
+	if rsaKey.E != overteRSAExponent {
+		return nil, fmt.Errorf("public_key must use RSA exponent %d", overteRSAExponent)
+	}
+	return rsaKey, nil
 }
 func VerifyHeartbeat(key *rsa.PublicKey, signed, signature []byte) error {
 	if key == nil {

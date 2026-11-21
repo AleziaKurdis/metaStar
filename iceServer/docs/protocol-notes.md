@@ -157,3 +157,14 @@ Source review confirms the packet type/version values and the data-frame layout 
 - Verify Qt QDataStream serialization using captured IPv4 and IPv6 socket payloads.
 - Run the Go service against an unmodified Domain Server and ICE client.
 - Verify both directions of peer-information exchange and NAT hole punching.
+
+
+## Domain public-key parameters
+
+The current Overte Domain Server generates 2048-bit RSA keypairs with public
+exponent 65537. MetaStar accepts Directory Service public keys only with those
+parameters, for both PKIX and PKCS#1 DER encodings. This matches the upstream
+generator and prevents a trusted Directory Service response from introducing
+unexpectedly weak or excessively expensive RSA verification keys. If upstream
+Overte changes its key-generation parameters, this compatibility check must be
+reviewed alongside that change.
