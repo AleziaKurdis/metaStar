@@ -302,7 +302,20 @@ func (s *Server) readUDP() error {
 			if packet.Version != protocol.VersionICEHeartbeat {
 				continue
 			}
-			if _, e := protocol.ParseHeartbeat(packet.Payload); e != nil {
+			heartbeat, e := protocol.ParseHeartbeat(packet.Payload)
+			if e != nil {
+				continue
+			}
+			// Unknown UUIDs cannot become peers and need no expensive worker
+			// time. Answer them here under the separate denial-response budget
+			// so spoofed unknown-domain traffic cannot fill the ingress queue.
+			s.ownershipMu.RLock()
+			_, registered := s.registry.Owner(heartbeat.DomainID)
+			s.ownershipMu.RUnlock()
+			if !registered {
+				if s.heartbeatDenials.allow(time.Now()) {
+					s.sendSimple(addr, protocol.PacketICEServerHeartbeatDenied)
+				}
 				continue
 			}
 		case protocol.PacketICEServerQuery:
