@@ -138,3 +138,36 @@ func TestParseQueryRejectsInvalidUUIDs(t *testing.T) {
 		})
 	}
 }
+
+
+func TestParseHeartbeatRejectsInvalidDomainUUIDs(t *testing.T) {
+	valid := []byte{0x47, 0x84, 0xf9, 0xdc, 0x38, 0x8c, 0x47, 0xc3, 0x88, 0x55, 0x37, 0x3d, 0x22, 0xf3, 0x1f, 0xf4}
+	sock := []byte{1, 192, 168, 1, 20, 0x1c, 0x9c}
+	makePayload := func(domainID []byte) []byte {
+		payload := append([]byte{}, domainID...)
+		payload = append(payload, sock...)
+		payload = append(payload, sock...)
+		payload = append(payload, 0, 0, 0, 0) // Empty QByteArray signature.
+		return payload
+	}
+	invalidVersion := append([]byte(nil), valid...)
+	invalidVersion[6] = 0x08
+	invalidVariant := append([]byte(nil), valid...)
+	invalidVariant[8] = 0x08
+	nilUUID := make([]byte, 16)
+	tests := []struct {
+		name string
+		domainID []byte
+	}{
+		{"nil domain UUID", nilUUID},
+		{"unsupported domain UUID version", invalidVersion},
+		{"invalid domain UUID variant", invalidVariant},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := ParseHeartbeat(makePayload(tt.domainID)); err == nil {
+				t.Fatal("expected invalid domain UUID to be rejected")
+			}
+		})
+	}
+}
