@@ -103,9 +103,9 @@ func (s *Store) Register(id, base string, domains []string) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.registerLocked(id, base, domains)
+	return s.registerLocked(id, base, domains, "")
 }
-func (s *Store) registerLocked(id, base string, domains []string) error {
+func (s *Store) registerLocked(id, base string, domains []string, credentialHash string) error {
 	u, err := url.Parse(base)
 	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Hostname() == "" {
 		return errors.New("base_url must be a valid HTTPS URL")
@@ -114,26 +114,45 @@ func (s *Store) registerLocked(id, base string, domains []string) error {
 		return errors.New("too many domains")
 	}
 	seen := map[string]bool{}
+	normalized := make([]string, 0, len(domains))
 	for _, d := range domains {
 		d = strings.ToLower(strings.TrimSpace(d))
 		if !validUUIDPattern.MatchString(d) || seen[d] {
 			return fmt.Errorf("invalid or duplicate domain UUID %q", d)
 		}
 		seen[d] = true
-	}
-	for _, d := range domains {
-		d = strings.ToLower(strings.TrimSpace(d))
 		if owner, ok := s.data.Owners[d]; ok && owner != id {
 			return fmt.Errorf("domain %s is already registered to directory %s", d, owner)
 		}
+		normalized = append(normalized, d)
 	}
-	normalized := make([]string, 0, len(domains))
-	for _, d := range domains {
-		normalized = append(normalized, strings.ToLower(strings.TrimSpace(d)))
+
+	// Keep the previous values so a failed disk commit cannot leave the
+	// in-memory owner map ahead of the durable registry file.
+	previousDirectory, hadDirectory := s.data.Directories[id]
+	previousCredential, hadCredential := s.data.CredentialHashes[id]
+
+	s.data.Directories[id] = Directory{ID: id, BaseURL: strings.TrimRight(u.String(), "/"), Domains: normalized}
+	if credentialHash != "" {
+		s.data.CredentialHashes[id] = credentialHash
 	}
-	s.data.Directories[id] = Directory{ID: id, BaseURL: strings.TrimRight(base, "/"), Domains: normalized}
 	s.rebuildOwners()
-	return s.saveLocked()
+
+	if err := s.saveLocked(); err != nil {
+		if hadDirectory {
+			s.data.Directories[id] = previousDirectory
+		} else {
+			delete(s.data.Directories, id)
+		}
+		if hadCredential {
+			s.data.CredentialHashes[id] = previousCredential
+		} else {
+			delete(s.data.CredentialHashes, id)
+		}
+		s.rebuildOwners()
+		return err
+	}
+	return nil
 }
 func (s *Store) Owner(domain string) (Directory, bool) {
 	s.mu.RLock()
@@ -167,15 +186,9 @@ func (s *Store) Enroll(id, base string, domains []string) (string, error) {
 	if _, ok := s.data.Directories[id]; ok {
 		return "", errors.New("directory already exists")
 	}
-	// Validate and persist registration atomically while holding the store lock.
-	if err := s.registerLocked(id, base, domains); err != nil {
-		return "", err
-	}
-	s.data.CredentialHashes[id] = hex.EncodeToString(hash[:])
-	if err := s.saveLocked(); err != nil {
-		delete(s.data.CredentialHashes, id)
-		delete(s.data.Directories, id)
-		s.rebuildOwners()
+	// Commit directory ownership and its credential in one registry-file write.
+	// This prevents a partial enrollment from leaving an owner without a token.
+	if err := s.registerLocked(id, base, domains, hex.EncodeToString(hash[:])); err != nil {
 		return "", err
 	}
 	return token, nil

@@ -20,6 +20,8 @@ A second enrollment attempt with the same directory ID is rejected. Register cal
 
 Each successful enrollment or synchronization compares the previous and new UUID ownership mappings. Active peer records are immediately removed for UUIDs whose owner changed, including UUIDs removed from a Directory Service's complete list or assigned to a first-time owner. Heartbeat acceptance and query handling are synchronized with these changes, and an in-flight public-key response is discarded if its Directory Service owner or base URL is no longer current.
 
+Registry persistence is atomic from the service's point of view: a failed file save restores the previous in-memory directory and ownership state. First-time enrollment writes the directory record and its credential hash together, so a failed write cannot leave an enrolled directory without a usable registration token.
+
 ## TLS trust
 
 The ICE service generates a self-signed certificate for its public IPv4 address. The Directory Service must securely obtain the ICE certificate and configure its HTTP client to trust it. Changing public IP regenerates the certificate and requires redistributing trust. A CA-issued certificate or a stronger enrollment trust design may replace this before production.
