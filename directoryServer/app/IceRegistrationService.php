@@ -184,7 +184,7 @@ final class IceRegistrationService
             if ($written !== strlen($json) || !fflush($handle)) {
                 throw new RuntimeException('Could not completely write the ICE registration token file.');
             }
-        } catch (\\Throwable $error) {
+        } catch (\Throwable $error) {
             fclose($handle);
             @unlink($temporary);
             umask($previousUmask);
