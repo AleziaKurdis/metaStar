@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.10-dev
+
+- Cool down successful public-key refreshes triggered by invalid heartbeat signatures, limiting repeated Directory Service fetches to one per domain every 30 seconds.
+- Keep initial missing-key retrieval and failed-fetch exponential backoff behavior unchanged.
+- Bind cooldown state to the owning Directory Service and clear it when domain ownership changes.
+- Add regression coverage for repeated refresh suppression and cooldown expiry.
+
 ## 0.3.9-dev
 
 - Decouple UDP socket reception from packet handling with a bounded 256-datagram FIFO queue and one consumer, preserving packet processing order.

@@ -1,6 +1,11 @@
 package server
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -37,7 +42,7 @@ func TestKeyFetchFailureUsesExponentialBackoff(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	srv.requestKey(owner, retryTestDomainID)
+	srv.requestKey(owner, retryTestDomainID, false)
 	waitForKeyFetchToFinish(t, srv, retryTestDomainID)
 
 	srv.keysMu.RLock()
@@ -50,7 +55,7 @@ func TestKeyFetchFailureUsesExponentialBackoff(t *testing.T) {
 		t.Fatalf("first retry delay remaining = %s, want a future time within one second", remaining)
 	}
 
-	srv.requestKey(owner, retryTestDomainID)
+	srv.requestKey(owner, retryTestDomainID, false)
 	time.Sleep(100 * time.Millisecond)
 	countMu.Lock()
 	gotRequests := requests
@@ -66,7 +71,7 @@ func TestKeyFetchFailureUsesExponentialBackoff(t *testing.T) {
 	srv.keyRetries[retryTestDomainID] = retry
 	srv.keysMu.Unlock()
 
-	srv.requestKey(owner, retryTestDomainID)
+	srv.requestKey(owner, retryTestDomainID, false)
 	waitForKeyFetchToFinish(t, srv, retryTestDomainID)
 	countMu.Lock()
 	gotRequests = requests
@@ -127,10 +132,15 @@ func TestOwnershipChangeClearsKeyRetryState(t *testing.T) {
 	}
 
 	srv.keysMu.Lock()
+	previousOwner := keyRequestOwner{directoryID: "directory-one", baseURL: "https://one.example"}
 	srv.keyRetries[retryTestDomainID] = keyRetryState{
-		owner: keyRequestOwner{directoryID: "directory-one", baseURL: "https://one.example"},
-		failures: 3,
+		owner:       previousOwner,
+		failures:    3,
 		nextAttempt: time.Now().Add(30 * time.Second),
+	}
+	srv.keyRefreshCooldowns[retryTestDomainID] = keyRefreshCooldownState{
+		owner:       previousOwner,
+		nextAttempt: time.Now().Add(keyRefreshCooldown),
 	}
 	srv.keysMu.Unlock()
 
@@ -138,8 +148,9 @@ func TestOwnershipChangeClearsKeyRetryState(t *testing.T) {
 
 	srv.keysMu.RLock()
 	_, exists := srv.keyRetries[retryTestDomainID]
+	_, cooldownExists := srv.keyRefreshCooldowns[retryTestDomainID]
 	srv.keysMu.RUnlock()
-	if exists {
+	if exists || cooldownExists {
 		t.Fatal("retry state for the previous Directory Service owner was retained")
 	}
 }
@@ -158,4 +169,92 @@ func waitForKeyFetchToFinish(t *testing.T, srv *Server, domainID string) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	t.Fatal("key fetch did not finish and record retry state")
+}
+
+func TestSuccessfulInvalidSignatureRefreshHasCooldown(t *testing.T) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	publicDER, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var countMu sync.Mutex
+	requests := 0
+	directory := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		countMu.Lock()
+		requests++
+		countMu.Unlock()
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status": "success",
+			"data": map[string]string{
+				"public_key": base64.StdEncoding.EncodeToString(publicDER),
+			},
+		})
+	}))
+	defer directory.Close()
+
+	srv, err := New(config.Config{DataFile: filepath.Join(t.TempDir(), "registry.json")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv.keyClient = directory.Client()
+	owner := registry.Directory{ID: "directory-one", BaseURL: directory.URL}
+	if err := srv.registry.Register(owner.ID, owner.BaseURL, []string{retryTestDomainID}); err != nil {
+		t.Fatal(err)
+	}
+
+	srv.requestKey(owner, retryTestDomainID, true)
+	waitForSuccessfulKeyFetch(t, srv, retryTestDomainID)
+
+	// Repeated invalid signatures during the cooldown must not cause another
+	// outbound request to the Directory Service.
+	srv.requestKey(owner, retryTestDomainID, true)
+	time.Sleep(100 * time.Millisecond)
+	countMu.Lock()
+	gotRequests := requests
+	countMu.Unlock()
+	if gotRequests != 1 {
+		t.Fatalf("requests during refresh cooldown = %d, want 1", gotRequests)
+	}
+
+	// Once the cooldown expires, a later signature failure may refresh again.
+	srv.keysMu.Lock()
+	cooldown := srv.keyRefreshCooldowns[retryTestDomainID]
+	cooldown.nextAttempt = time.Now().Add(-time.Second)
+	srv.keyRefreshCooldowns[retryTestDomainID] = cooldown
+	srv.keysMu.Unlock()
+
+	srv.requestKey(owner, retryTestDomainID, true)
+	waitForSuccessfulKeyFetchCount(t, srv, retryTestDomainID, 2)
+	countMu.Lock()
+	gotRequests = requests
+	countMu.Unlock()
+	if gotRequests != 2 {
+		t.Fatalf("requests after cooldown expiry = %d, want 2", gotRequests)
+	}
+}
+
+func waitForSuccessfulKeyFetch(t *testing.T, srv *Server, domainID string) {
+	t.Helper()
+	waitForSuccessfulKeyFetchCount(t, srv, domainID, 1)
+}
+
+func waitForSuccessfulKeyFetchCount(t *testing.T, srv *Server, domainID string, wantRequests int) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		srv.keysMu.RLock()
+		_, pending := srv.pending[domainID]
+		key := srv.keys[domainID]
+		_, cooldown := srv.keyRefreshCooldowns[domainID]
+		srv.keysMu.RUnlock()
+		if !pending && key != nil && cooldown {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("successful key refresh did not finish (expected request count %d)", wantRequests)
 }

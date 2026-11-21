@@ -1,4 +1,4 @@
-# metaStar ICE Server — Go 0.3.9-dev
+# metaStar ICE Server — Go 0.3.10-dev
 
 Standalone Go ICE service for Ubuntu 24.04 x86_64. Designed for one ICE server to serve multiple independently operated Directory Services without manual per-directory configuration on the ICE host.
 
@@ -15,7 +15,7 @@ No Apache/Nginx is required. Firewall/router rules must cover both protocols. Th
 
 The Go packet type identifiers now match the zero-based values in Overte's `PacketTypeEnum::Value`. Numeric golden tests protect these values.
 
-The Go implementation handles the unreliable, unfragmented and unobfuscated Overte UDP data-frame subset used by ICE heartbeats, queries, acknowledgements, denials and peer-information responses. It reads complete UDP payloads before enforcing a 2,048-byte ICE datagram limit, so oversized packets cannot be silently truncated into valid-looking prefixes. It also refreshes a cached domain public key when heartbeat signature verification fails, matching the original ICE server's key-rotation behavior. Concurrent public-key retrieval is capped at 32 requests; when all slots are occupied, a domain can retry on its next heartbeat. It does not implement Overte's full reliable UDT transport. See `docs/protocol-notes.md` for the source audit and remaining validation work.
+The Go implementation handles the unreliable, unfragmented and unobfuscated Overte UDP data-frame subset used by ICE heartbeats, queries, acknowledgements, denials and peer-information responses. It reads complete UDP payloads before enforcing a 2,048-byte ICE datagram limit, so oversized packets cannot be silently truncated into valid-looking prefixes. It also refreshes a cached domain public key when heartbeat signature verification fails, matching the original ICE server's key-rotation behavior. After a successful signature-triggered refresh, repeated invalid signatures for that domain are held to one refresh per 30 seconds; initial missing-key lookups are unaffected. Concurrent public-key retrieval is capped at 32 requests; when all slots are occupied, a domain can retry on its next heartbeat. It does not implement Overte's full reliable UDT transport. See `docs/protocol-notes.md` for the source audit and remaining validation work.
 
 The server tests exercise the two-peer UDP information exchange locally, including a simulated change to the target peer's NAT-mapped source endpoint. This is still **not proof of end-to-end interoperability**. Real Domain Server and ICE client tests and real Internet NAT hole-punch tests are still required.
 

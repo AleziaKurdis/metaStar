@@ -330,7 +330,7 @@ func TestRequestKeyFetchConcurrencyIsBounded(t *testing.T) {
 		if !ok {
 			t.Fatalf("missing owner for %s", id)
 		}
-		srv.requestKey(dir, id)
+		srv.requestKey(dir, id, false)
 	}
 	for i := 0; i < 2; i++ {
 		select {
@@ -341,7 +341,7 @@ func TestRequestKeyFetchConcurrencyIsBounded(t *testing.T) {
 	}
 
 	thirdDirectory, _ := srv.registry.Owner(domainIDs[2])
-	srv.requestKey(thirdDirectory, domainIDs[2])
+	srv.requestKey(thirdDirectory, domainIDs[2], false)
 	select {
 	case <-started:
 		t.Fatal("third key fetch started while both slots were occupied")
@@ -363,7 +363,7 @@ func TestRequestKeyFetchConcurrencyIsBounded(t *testing.T) {
 	if len(srv.keyFetchSlots) != 1 {
 		t.Fatal("first key fetch did not release its concurrency slot")
 	}
-	srv.requestKey(thirdDirectory, domainIDs[2])
+	srv.requestKey(thirdDirectory, domainIDs[2], false)
 	select {
 	case <-started:
 	case <-time.After(2 * time.Second):

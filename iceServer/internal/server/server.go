@@ -31,8 +31,16 @@ type keyRetryState struct {
 	nextAttempt time.Time
 }
 
+type keyRefreshCooldownState struct {
+	owner       keyRequestOwner
+	nextAttempt time.Time
+}
+
 const (
 	maxConcurrentKeyFetches = 32
+	// A successfully refreshed key followed by more invalid signatures must
+	// not trigger an outbound Directory Service fetch on every heartbeat.
+	keyRefreshCooldown = 30 * time.Second
 	// A single consumer preserves UDP receive order while allowing the socket
 	// reader to keep draining short bursts. The queue is intentionally finite.
 	udpIngressQueueCapacity = 256
@@ -66,22 +74,23 @@ func enqueueDatagram(queue chan inboundDatagram, data []byte, addr *net.UDPAddr)
 }
 
 type Server struct {
-	cfg         config.Config
-	registry    *registry.Store
-	ownershipMu sync.RWMutex
-	peersMu     sync.RWMutex
-	peers       map[string]protocol.Peer
-	keysMu      sync.RWMutex
-	keys        map[string]*rsa.PublicKey
-	pending     map[string]keyRequestOwner
-	keyRetries  map[string]keyRetryState
-	sequences   *sequenceTracker
-	udp         *net.UDPConn
-	httpServer  *http.Server
-	keyClient        *http.Client
-	keyFetchSlots    chan struct{}
-	queryLimits      *queryLimiter
-	heartbeatDenials *heartbeatDenialLimiter
+	cfg                 config.Config
+	registry            *registry.Store
+	ownershipMu         sync.RWMutex
+	peersMu             sync.RWMutex
+	peers               map[string]protocol.Peer
+	keysMu              sync.RWMutex
+	keys                map[string]*rsa.PublicKey
+	pending             map[string]keyRequestOwner
+	keyRetries          map[string]keyRetryState
+	keyRefreshCooldowns map[string]keyRefreshCooldownState
+	sequences           *sequenceTracker
+	udp                 *net.UDPConn
+	httpServer          *http.Server
+	keyClient           *http.Client
+	keyFetchSlots       chan struct{}
+	queryLimits         *queryLimiter
+	heartbeatDenials    *heartbeatDenialLimiter
 }
 
 type registerRequest struct {
@@ -99,7 +108,7 @@ func New(cfg config.Config) (*Server, error) {
 	if e != nil {
 		return nil, e
 	}
-	return &Server{cfg: cfg, registry: r, peers: map[string]protocol.Peer{}, keys: map[string]*rsa.PublicKey{}, pending: map[string]keyRequestOwner{}, keyRetries: map[string]keyRetryState{}, sequences: newSequenceTracker(), queryLimits: newQueryLimiter(), heartbeatDenials: newHeartbeatDenialLimiter(time.Now()), keyFetchSlots: make(chan struct{}, maxConcurrentKeyFetches), keyClient: &http.Client{Timeout: 8 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+	return &Server{cfg: cfg, registry: r, peers: map[string]protocol.Peer{}, keys: map[string]*rsa.PublicKey{}, pending: map[string]keyRequestOwner{}, keyRetries: map[string]keyRetryState{}, keyRefreshCooldowns: map[string]keyRefreshCooldownState{}, sequences: newSequenceTracker(), queryLimits: newQueryLimiter(), heartbeatDenials: newHeartbeatDenialLimiter(time.Now()), keyFetchSlots: make(chan struct{}, maxConcurrentKeyFetches), keyClient: &http.Client{Timeout: 8 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if req.URL.Scheme != "https" || len(via) > 0 && !strings.EqualFold(req.URL.Host, via[0].URL.Host) {
 			return http.ErrUseLastResponse
 		}
@@ -186,6 +195,7 @@ func (s *Server) handleEnroll(w http.ResponseWriter, r *http.Request) {
 	s.keysMu.Lock()
 	for _, id := range req.Domains {
 		delete(s.keys, id)
+		delete(s.keyRefreshCooldowns, id)
 	}
 	s.keysMu.Unlock()
 	s.evictPeersForOwnershipChanges(previousOwners)
@@ -373,7 +383,7 @@ func (s *Server) handleDatagramInternal(data []byte, addr *net.UDPAddr, queryAdm
 		}
 		key := s.getKey(hb.DomainID)
 		if key == nil {
-			s.requestKey(dir, hb.DomainID)
+			s.requestKey(dir, hb.DomainID, false)
 			s.ownershipMu.RUnlock()
 			// ACK confirms that this ICE endpoint is alive and should remain
 			// selected while the asynchronous identity lookup is in flight.
@@ -386,7 +396,7 @@ func (s *Server) handleDatagramInternal(data []byte, addr *net.UDPAddr, queryAdm
 			log.Printf("invalid heartbeat signature for domain %s; refreshing public key", hb.DomainID)
 			// Match the original ICE server: a failed signature can mean the
 			// Domain Server rotated its keypair. Refresh from this UUID's owner.
-			s.requestKey(dir, hb.DomainID)
+			s.requestKey(dir, hb.DomainID, true)
 			s.ownershipMu.RUnlock()
 			// A stale key may simply mean the Domain Server rotated its keypair.
 			// Keep the ICE endpoint selected while the replacement key is fetched;
@@ -490,6 +500,7 @@ func (s *Server) evictPeersForOwnershipChanges(previousOwners map[string]string)
 	for id := range changed {
 		delete(s.keys, id)
 		delete(s.keyRetries, id)
+		delete(s.keyRefreshCooldowns, id)
 	}
 	s.keysMu.Unlock()
 }
@@ -510,7 +521,7 @@ func keyFetchRetryDelay(failures uint) time.Duration {
 	return delay
 }
 
-func (s *Server) requestKey(dir registry.Directory, id string) {
+func (s *Server) requestKey(dir registry.Directory, id string, refresh bool) {
 	// Do not create an unbounded number of goroutines or outbound HTTPS
 	// requests when heartbeats arrive for many uncached registered domains.
 	// If all slots are busy, the next heartbeat can retry this lookup.
@@ -528,6 +539,13 @@ func (s *Server) requestKey(dir registry.Directory, id string) {
 		s.keysMu.Unlock()
 		<-s.keyFetchSlots
 		return
+	}
+	if refresh {
+		if cooldown, ok := s.keyRefreshCooldowns[id]; ok && cooldown.owner == requestOwner && now.Before(cooldown.nextAttempt) {
+			s.keysMu.Unlock()
+			<-s.keyFetchSlots
+			return
+		}
 	}
 	if retry, ok := s.keyRetries[id]; ok && retry.owner == requestOwner && now.Before(retry.nextAttempt) {
 		s.keysMu.Unlock()
@@ -578,6 +596,9 @@ func (s *Server) requestKey(dir registry.Directory, id string) {
 			if retry, ok := s.keyRetries[id]; ok && retry.owner == requestOwner {
 				delete(s.keyRetries, id)
 			}
+			if cooldown, ok := s.keyRefreshCooldowns[id]; ok && cooldown.owner == requestOwner {
+				delete(s.keyRefreshCooldowns, id)
+			}
 			s.keysMu.Unlock()
 			log.Printf("discarded stale public key response for domain %s (directory ownership changed)", id)
 			return
@@ -590,6 +611,12 @@ func (s *Server) requestKey(dir registry.Directory, id string) {
 		}
 		if retry, ok := s.keyRetries[id]; ok && retry.owner == requestOwner {
 			delete(s.keyRetries, id)
+		}
+		if refresh {
+			s.keyRefreshCooldowns[id] = keyRefreshCooldownState{
+				owner:       requestOwner,
+				nextAttempt: time.Now().Add(keyRefreshCooldown),
+			}
 		}
 		s.keysMu.Unlock()
 		s.ownershipMu.RUnlock()
