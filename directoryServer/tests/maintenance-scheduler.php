@@ -49,6 +49,16 @@ $notDue = MaintenanceScheduler::onDomainHeartbeat($store, $config, 1200);
 assert($notDue['queued'] === false);
 assert($notDue['reason'] === 'not_due');
 
+// A domain registry change bypasses the periodic interval and queues immediately.
+$registryChange = MaintenanceScheduler::onDomainRegistryChanged($store, $config, 1200);
+assert($registryChange['queued'] === true);
+assert($registryChange['reason'] === 'scheduled');
+$state = $store->first('scheduled_tasks', static fn(array $task): bool => ($task['id'] ?? '') === 'ice_sync');
+assert($state['pending'] === true);
+
+// Simulate a completed sync; a later heartbeat still respects the normal interval.
+$store->update('scheduled_tasks', 'ice_sync', ['pending' => false, 'lastSuccess' => 1000]);
+
 $due = MaintenanceScheduler::onDomainHeartbeat($store, $config, 1300);
 assert($due['queued'] === true);
 assert($due['reason'] === 'scheduled');

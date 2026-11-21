@@ -192,6 +192,8 @@ $router->add('POST', '/api/v1/domains', static function (array $params, JsonStor
     ];
     $store->insert('domains', $domain);
     $store->insert('places', $place);
+    // A registry change must be synchronized immediately, even after a recent sync.
+    MaintenanceScheduler::onDomainRegistryChanged($store, $config);
     $domainInfo = DomainService::info($domain, $store, $config, false);
     $domainInfo['api_key'] = $domain['apiKey'];
     $placeInfo = DomainService::placeInfo($place, $domain);
@@ -375,7 +377,11 @@ $router->add('DELETE', '/api/v1/domains/{domainId}', static function (array $par
     if (!DomainService::isAdmin($account) && !DomainService::canSponsor($account, $domain)) {
         Http::failure('Only the domain sponsor or an administrator may delete it', 403);
     }
-    $store->delete('domains', $domain['id']);
+    $deleted = $store->delete('domains', $domain['id']);
+    if ($deleted) {
+        // Queue reconciliation so ICE drops ownership for the deleted domain.
+        MaintenanceScheduler::onDomainRegistryChanged($store, $config);
+    }
     // Iamus deliberately leaves associated places in place when a domain is deleted.
     Http::success();
 });
