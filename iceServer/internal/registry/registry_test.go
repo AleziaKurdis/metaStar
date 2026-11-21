@@ -55,7 +55,6 @@ func TestRegistrationToken(t *testing.T) {
 	}
 }
 
-
 func TestRegisterRollsBackInMemoryStateWhenPersistenceFails(t *testing.T) {
 	registryDir := filepath.Join(t.TempDir(), "registry-data")
 	path := filepath.Join(registryDir, "registry.json")
@@ -129,5 +128,32 @@ func TestEnrollRollsBackOwnershipAndCredentialWhenPersistenceFails(t *testing.T)
 	}
 	if _, ok := snapshot.CredentialHashes["directory-one"]; ok {
 		t.Fatal("failed enrollment left a credential hash in memory")
+	}
+}
+
+func TestDomainUUIDValidationMatchesDirectoryServer(t *testing.T) {
+	s, err := New(filepath.Join(t.TempDir(), "registry.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	valid := []string{
+		"4784f9dc-388c-47c3-8855-373d22f31ff4",
+		"11111111-2222-1333-8444-555555555555",
+		"aaaaaaaa-bbbb-8ccc-9ddd-eeeeeeeeeeee",
+	}
+	for _, id := range valid {
+		if err := s.Register("directory", "https://directory.example", []string{id}); err != nil {
+			t.Errorf("valid UUID %q rejected: %v", id, err)
+		}
+	}
+	invalid := []string{
+		"11111111-2222-0333-8444-555555555555", // unsupported UUID version
+		"11111111-2222-4333-7444-555555555555", // invalid RFC variant
+		"not-a-domain-id",
+	}
+	for i, id := range invalid {
+		if err := s.Register("invalid-"+string(rune('a'+i)), "https://directory.example", []string{id}); err == nil {
+			t.Errorf("invalid UUID %q accepted", id)
+		}
 	}
 }

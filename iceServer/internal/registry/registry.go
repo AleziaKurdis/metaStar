@@ -27,7 +27,9 @@ type Snapshot struct {
 	Owners           map[string]string    `json:"owners"`
 }
 
-var validUUIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+// Match the UUID version and RFC variant requirements enforced by the PHP
+// Directory Server before it sends its complete domain ownership list.
+var validUUIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 
 type Store struct {
 	mu   sync.RWMutex
