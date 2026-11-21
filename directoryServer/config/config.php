@@ -15,6 +15,9 @@ $defaults = [
     'ice_control_url' => '',
     'ice_control_ca_file' => '',
     'ice_directory_id' => '',
+    // Heartbeats queue ICE synchronization; the CLI scheduler worker executes it.
+    'ice_sync_interval_seconds' => 300,
+    'scheduler_retry_seconds' => 60,
     'server_version' => ['major' => 1, 'minor' => 0, 'patch' => 0],
     'metaverse_info_addition_file' => '',
     'session_timeout_minutes' => 5,

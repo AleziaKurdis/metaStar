@@ -1,6 +1,6 @@
 # Directory Server ↔ metaStar ICE registration
 
-The Directory Server synchronizes its complete domain UUID list with the Go ICE control API using a CLI command. This is deliberately separate from normal web requests: PHP hosting does not need a resident daemon, and temporary ICE outages do not slow down Domain Server API requests.
+The Directory Server synchronizes its complete domain UUID list with the Go ICE control API. Domain heartbeats enqueue synchronization when it is due; a separate CLI worker performs the network request. This keeps ICE calls out of the heartbeat response and allows temporary ICE outages to be retried without affecting Domain Server API requests.
 
 ## Configuration
 
@@ -43,17 +43,18 @@ php bin/ice-sync.php sync
 
 The command sends the complete current domain UUID list to `POST /v1/register`. Removed domains are removed from this Directory Service's ICE ownership list; the ICE service evicts peers whose ownership changed.
 
-For low-maintenance hosting, add a cron entry to run every five minutes (adjust the PHP path and project path for the host):
+For low-maintenance hosting, configure the scheduler worker to run every minute (adjust the PHP path and project path for the host):
 
 ```cron
-*/5 * * * * /usr/bin/php /path/to/directoryServer/bin/ice-sync.php sync >> /path/to/private-logs/ice-sync.log 2>&1
+* * * * * /usr/bin/php /path/to/directoryServer/bin/scheduler.php >> /path/to/private-logs/scheduler.log 2>&1
 ```
 
-The command is safe to repeat. It does not create, modify, or delete Directory Server domain records; it only mirrors the complete UUID list to ICE. A failed request returns a non-zero exit status so cron monitoring can detect it.
+The worker processes pending tasks only. It is safe to invoke every minute; it exits quickly when no work is pending. Failed ICE requests remain pending with a retry delay and are reported in the worker output. The heartbeat only writes a local queue record; it never makes an outbound request or waits for ICE. The manual `php bin/ice-sync.php sync` command remains available for an immediate synchronization.
 
 ## Operational boundaries
 
-- This CLI integration does not automatically enroll during web requests.
+- Enrollment remains a deliberate one-time CLI operation; it never runs automatically during web requests.
+- After enrollment, Domain Server heartbeats enqueue due ICE sync work. A cron invocation of `bin/scheduler.php` is required to execute it; without a worker, queued syncs remain pending.
 - It does not change the ICE address advertised to Overte; configure `default_ice_server_url` separately to the correct public ICE address.
 - The ICE service's current self-signed IP certificate requires explicit secure distribution and trust configuration.
 - If the ICE endpoint or certificate changes, update `ice_control_url` and `ice_control_ca_file` before running sync.
