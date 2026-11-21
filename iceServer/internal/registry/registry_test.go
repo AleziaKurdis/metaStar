@@ -3,6 +3,7 @@ package registry
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -369,5 +370,49 @@ func TestSaveUsesPrivateUniqueTemporaryFileAndCleansItUp(t *testing.T) {
 	}
 	if len(entries) != 1 || entries[0].Name() != "registry.json" {
 		t.Fatalf("temporary registry files were not cleaned up: %v", entries)
+	}
+}
+
+
+func TestSaveDoesNotFollowLegacyTemporaryFileSymlink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("creating symlinks may require elevated privileges on Windows")
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "registry.json")
+	legacyTempPath := path + ".tmp"
+	targetPath := filepath.Join(dir, "sentinel")
+	original := []byte("do not overwrite this file")
+
+	if err := os.WriteFile(targetPath, original, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(targetPath, legacyTempPath); err != nil {
+		t.Fatal(err)
+	}
+
+	s, err := New(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Register("directory-one", "https://one.example", nil); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := os.ReadFile(targetPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(original) {
+		t.Fatalf("pre-existing temporary-file symlink target was modified: got %q, want %q", got, original)
+	}
+
+	info, err := os.Lstat(legacyTempPath)
+	if err != nil {
+		t.Fatalf("pre-existing temporary-file symlink was removed or replaced: %v", err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Fatal("pre-existing temporary-file symlink was replaced")
 	}
 }
