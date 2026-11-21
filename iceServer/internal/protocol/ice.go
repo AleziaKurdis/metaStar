@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -109,6 +110,8 @@ type publicKeyResponse struct {
 	} `json:"data"`
 }
 
+const maxPublicKeyResponseSize = 64 << 10
+
 func FetchPublicKey(client *http.Client, dir registry.Directory, domainID string) (*rsa.PublicKey, error) {
 	base, e := url.Parse(dir.BaseURL)
 	if e != nil {
@@ -127,14 +130,21 @@ func FetchPublicKey(client *http.Client, dir registry.Directory, domainID string
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("directory returned HTTP %d", resp.StatusCode)
 	}
-	var body publicKeyResponse
-	if e = json.NewDecoder(resp.Body).Decode(&body); e != nil {
+	body, e := io.ReadAll(io.LimitReader(resp.Body, maxPublicKeyResponseSize+1))
+	if e != nil {
 		return nil, e
 	}
-	if body.Status != "success" || body.Data.PublicKey == "" {
+	if len(body) > maxPublicKeyResponseSize {
+		return nil, fmt.Errorf("directory public-key response exceeds %d bytes", maxPublicKeyResponseSize)
+	}
+	var response publicKeyResponse
+	if e = json.Unmarshal(body, &response); e != nil {
+		return nil, e
+	}
+	if response.Status != "success" || response.Data.PublicKey == "" {
 		return nil, errors.New("directory response did not contain data.public_key")
 	}
-	der, e := base64.StdEncoding.DecodeString(body.Data.PublicKey)
+	der, e := base64.StdEncoding.DecodeString(response.Data.PublicKey)
 	if e != nil {
 		return nil, e
 	}

@@ -1,9 +1,61 @@
 package protocol
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/binary"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/overte-org/overte-ice-server/internal/registry"
 )
+
+func TestFetchPublicKeyRejectsOversizedResponse(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(strings.Repeat("x", maxPublicKeyResponseSize+1)))
+	}))
+	defer server.Close()
+
+	_, err := FetchPublicKey(server.Client(), registry.Directory{BaseURL: server.URL}, "4784f9dc-388c-47c3-8855-373d22f31ff4")
+	if err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("expected oversized-response error, got %v", err)
+	}
+}
+
+func TestFetchPublicKeyAcceptsValidResponse(t *testing.T) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	der, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/domains/4784f9dc-388c-47c3-8855-373d22f31ff4/public_key" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status": "success",
+			"data": map[string]string{"public_key": base64.StdEncoding.EncodeToString(der)},
+		})
+	}))
+	defer server.Close()
+
+	key, err := FetchPublicKey(server.Client(), registry.Directory{BaseURL: server.URL}, "4784f9dc-388c-47c3-8855-373d22f31ff4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if key.N.Cmp(privateKey.PublicKey.N) != 0 || key.E != privateKey.PublicKey.E {
+		t.Fatal("fetched RSA public key does not match response")
+	}
+}
 
 func TestParseHeartbeatQtStream(t *testing.T) {
 	uuid := []byte{0x47, 0x84, 0xf9, 0xdc, 0x38, 0x8c, 0x47, 0xc3, 0x88, 0x55, 0x37, 0x3d, 0x22, 0xf3, 0x1f, 0xf4}
