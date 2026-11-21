@@ -397,3 +397,22 @@ Email account tests: `php tests/email-account.php`.
 Domain entries are not created from the account dashboard. A signed-in account generates a `domain`-scope token and supplies it to the Overte Domain Server setup wizard. When the user activates the domain from Domain Server settings (the “Create new domain ID” action), the Domain Server calls `POST /api/v1/domains` with its domain label and optional network details. Following the original Iamus protocol, the directory service creates the domain record and assigns its permanent UUID, associates it with the account represented by the token, creates the initial place entry, and returns the domain and place information. The Domain Server then sends `PUT /api/v1/domains/{domainId}` heartbeats using that domain token. The account dashboard lists only domains sponsored by the signed-in account and refreshes automatically while open.
 
 The dashboard is intentionally not a domain-registration client: it only generates/revokes tokens and displays domains registered by their Domain Servers.
+
+
+## metaStar ICE registration and synchronization
+
+The PHP Directory Server includes an optional CLI integration for one-time enrollment with the metaStar Go ICE service and recurring synchronization of the complete domain UUID list. It does not make outbound ICE requests during ordinary web traffic.
+
+See [docs/ice-registration.md](../docs/ice-registration.md) for configuration, first-time enrollment, certificate trust, and cron setup.
+
+- Configure `ice_control_url`, `ice_control_ca_file`, and a stable `ice_directory_id` in `config/local.php`.
+- Run `OVERTE_ICE_ENROLLMENT_SECRET=... php bin/ice-sync.php enroll` once; the issued per-directory token is saved in the private storage directory.
+- Run `php bin/ice-sync.php sync` periodically (for example, every five minutes with cron).
+- TLS verification is mandatory. The ICE certificate must be explicitly trusted; the integration never disables certificate checks.
+- `default_ice_server_url` remains the separate client-advertised ICE address.
+
+Run the new test with assertions enabled:
+
+```sh
+php -d zend.assertions=1 -d assert.exception=1 tests/ice-registration.php
+```

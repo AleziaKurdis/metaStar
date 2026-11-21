@@ -11,6 +11,10 @@ $defaults = [
     'metaverse_nick_name' => 'My Metaverse',
     'metaverse_server_url' => '',
     'default_ice_server_url' => '',
+    // ICE control API is separate from default_ice_server_url (the client-advertised ICE address).
+    'ice_control_url' => '',
+    'ice_control_ca_file' => '',
+    'ice_directory_id' => '',
     'server_version' => ['major' => 1, 'minor' => 0, 'patch' => 0],
     'metaverse_info_addition_file' => '',
     'session_timeout_minutes' => 5,
