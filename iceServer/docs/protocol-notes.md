@@ -168,3 +168,16 @@ generator and prevents a trusted Directory Service response from introducing
 unexpectedly weak or excessively expensive RSA verification keys. If upstream
 Overte changes its key-generation parameters, this compatibility check must be
 reviewed alongside that change.
+
+
+## Public-key fetch concurrency
+
+Heartbeat-triggered Directory Service public-key retrieval is asynchronous and
+deduplicated per domain. The ICE service also caps all simultaneous key fetches
+at 32, bounding the number of lookup goroutines and outbound HTTPS requests.
+When all slots are occupied, a new lookup is not marked pending; the domain's
+next heartbeat can retry. This limit is global across enrolled directories and
+does not use source IP, so domains behind the same NAT do not share a
+per-address quota. It can delay key bootstrap during a large simultaneous
+reconnect or key-rotation event; the limit should be reviewed against observed
+deployment scale and Directory Service capacity.
