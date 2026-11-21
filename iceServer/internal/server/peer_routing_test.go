@@ -96,6 +96,12 @@ func TestPeerInformationUsesCurrentObservedSocket(t *testing.T) {
 		if ack.Type != protocol.PacketICEServerHeartbeatACK {
 			t.Fatalf("heartbeat from %s received packet type %d, want ACK", endpoint.LocalAddr(), ack.Type)
 		}
+		if ack.Version != protocol.VersionICEStandard {
+			t.Fatalf("heartbeat ACK version = %d, want %d", ack.Version, protocol.VersionICEStandard)
+		}
+		if ack.Sequence != 1 {
+			t.Fatalf("first heartbeat ACK sequence = %d, want 1", ack.Sequence)
+		}
 	}
 
 	// The second heartbeat represents a new NAT mapping. The original C++
@@ -120,6 +126,10 @@ func TestPeerInformationUsesCurrentObservedSocket(t *testing.T) {
 	if toRequester.Type != protocol.PacketICEServerPeerInformation {
 		t.Fatalf("requester got packet type %d, want peer information", toRequester.Type)
 	}
+	if toRequester.Version != protocol.VersionICEStandard || toRequester.Sequence != 1 {
+		t.Fatalf("requester peer-information header = version %d sequence %d, want version %d sequence 1",
+			toRequester.Version, toRequester.Sequence, protocol.VersionICEStandard)
+	}
 	expectedTarget, err := peerPayload(domainID, domainPublic, domainLocal)
 	if err != nil {
 		t.Fatal(err)
@@ -129,10 +139,17 @@ func TestPeerInformationUsesCurrentObservedSocket(t *testing.T) {
 	}
 
 	// The target's latest active endpoint gets the requester's information.
+	// Its ACK already used sequence 1, so this packet must use sequence 2:
+	// Overte shares one unreliable sequence counter across packet types per
+	// destination SockAddr.
 	_ = currentEndpoint.SetReadDeadline(time.Now().Add(2 * time.Second))
 	toTarget := readTestPacket(t, currentEndpoint)
 	if toTarget.Type != protocol.PacketICEServerPeerInformation {
 		t.Fatalf("target got packet type %d, want peer information", toTarget.Type)
+	}
+	if toTarget.Version != protocol.VersionICEStandard || toTarget.Sequence != 2 {
+		t.Fatalf("target peer-information header = version %d sequence %d, want version %d sequence 2",
+			toTarget.Version, toTarget.Sequence, protocol.VersionICEStandard)
 	}
 	expectedRequester, err := peerPayload(requesterID, requesterPublic, requesterLocal)
 	if err != nil {
@@ -149,6 +166,46 @@ func TestPeerInformationUsesCurrentObservedSocket(t *testing.T) {
 		t.Fatal("peer information was incorrectly sent to the superseded NAT endpoint")
 	} else if netErr, ok := err.(net.Error); !ok || !netErr.Timeout() {
 		t.Fatalf("unexpected error while checking superseded NAT endpoint: %v", err)
+	}
+}
+
+func TestUnregisteredHeartbeatGetsVersionedDenial(t *testing.T) {
+	tmp := t.TempDir()
+	srv, err := New(config.Config{
+		ListenAddress: "127.0.0.1",
+		Port: 17340,
+		DataFile: filepath.Join(tmp, "registry.json"),
+		EnrollmentToken: "012345678901234567890123456789012345678901234567",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv.udp, err = net.ListenUDP("udp4", &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.udp.Close()
+
+	endpoint := listenTestUDP(t)
+	defer endpoint.Close()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heartbeat := makeSignedHeartbeat(t, "4784f9dc-388c-47c3-8855-373d22f31ff4",
+		[]byte{1, 203, 0, 113, 10, 0x1c, 0x9c},
+		[]byte{1, 192, 168, 10, 20, 0x1c, 0x9c}, key)
+
+	_ = endpoint.SetReadDeadline(time.Now().Add(2 * time.Second))
+	srv.handleDatagram(heartbeat, endpoint.LocalAddr().(*net.UDPAddr))
+	denied := readTestPacket(t, endpoint)
+	if denied.Type != protocol.PacketICEServerHeartbeatDenied {
+		t.Fatalf("unregistered heartbeat response type = %d, want %d",
+			denied.Type, protocol.PacketICEServerHeartbeatDenied)
+	}
+	if denied.Version != protocol.VersionICEStandard || denied.Sequence != 1 {
+		t.Fatalf("heartbeat-denial header = version %d sequence %d, want version %d sequence 1",
+			denied.Version, denied.Sequence, protocol.VersionICEStandard)
 	}
 }
 
@@ -208,4 +265,3 @@ func peerPayload(id string, publicSocket, localSocket []byte) ([]byte, error) {
 	out = append(out, localSocket...)
 	return out, nil
 }
-
