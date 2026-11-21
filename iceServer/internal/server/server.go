@@ -39,6 +39,7 @@ type Server struct {
 	udp        *net.UDPConn
 	httpServer *http.Server
 	keyClient  *http.Client
+	queryLimits *queryLimiter
 }
 
 type registerRequest struct {
@@ -56,7 +57,7 @@ func New(cfg config.Config) (*Server, error) {
 	if e != nil {
 		return nil, e
 	}
-	return &Server{cfg: cfg, registry: r, peers: map[string]protocol.Peer{}, keys: map[string]*rsa.PublicKey{}, pending: map[string]keyRequestOwner{}, sendSeq: map[string]uint32{}, keyClient: &http.Client{Timeout: 8 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+	return &Server{cfg: cfg, registry: r, peers: map[string]protocol.Peer{}, keys: map[string]*rsa.PublicKey{}, pending: map[string]keyRequestOwner{}, sendSeq: map[string]uint32{}, queryLimits: newQueryLimiter(), keyClient: &http.Client{Timeout: 8 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if req.URL.Scheme != "https" || len(via) > 0 && !strings.EqualFold(req.URL.Host, via[0].URL.Host) {
 			return http.ErrUseLastResponse
 		}
@@ -282,6 +283,12 @@ func (s *Server) handleDatagram(data []byte, addr *net.UDPAddr) {
 		q, e := protocol.ParseQuery(p.Payload)
 		if e != nil {
 			log.Printf("discard malformed ICE query from %s: %v", addr, e)
+			return
+		}
+		// ICE queries have no client authentication in the Overte wire
+		// protocol. Bound relay work by the observed source IP without
+		// changing the packet format or requiring client changes.
+		if !s.queryLimits.allow(addr, time.Now()) {
 			return
 		}
 		s.ownershipMu.RLock()
