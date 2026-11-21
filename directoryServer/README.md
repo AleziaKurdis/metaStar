@@ -221,7 +221,7 @@ If the host requires the project root as document root, the included root `.htac
 
 ## Storage
 
-Collections are JSON arrays stored in `data/`: `accounts.json`, `domains.json`, `places.json`, `tokens.json`, `requests.json`, `sessions.json`, and `maintenance.json`. Files are created on first write. Back up the complete `data/` directory.
+Collections are JSON arrays stored in `data/`: `accounts.json`, `domains.json`, `places.json`, `tokens.json`, `requests.json`, `sessions.json`, `maintenance.json`, and `scheduled_tasks.json`. Files are created on first write. Back up the complete `data/` directory.
 
 ## Tests
 
