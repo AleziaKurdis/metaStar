@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.9-dev
+
+- Decouple UDP socket reception from packet handling with a bounded 256-datagram FIFO queue and one consumer, preserving packet processing order.
+- Reject malformed, unsupported, and wrong-version frames before queue admission.
+- Apply query rate limiting and unknown-domain heartbeat denial handling at ingress so those floods do not occupy the processing queue.
+- Drop newest packets when the queue is full rather than spawning unbounded goroutines or allocating an unbounded backlog.
+- Add tests for queue capacity, FIFO ordering, and ownership of copied packet/address data.
+
 ## 0.3.8-dev
 
 - Bound outbound denial responses for syntactically valid heartbeats from unknown domain UUIDs with a process-wide token bucket (50 responses/second, burst of 100).
