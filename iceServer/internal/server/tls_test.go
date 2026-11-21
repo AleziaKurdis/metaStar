@@ -79,3 +79,33 @@ func TestLoadTLSRejectsMismatchedCertificateAndKey(t *testing.T) {
 		t.Fatal("expected invalid certificate/key error")
 	}
 }
+
+func TestEnsureCertificateGeneratesIPv6SAN(t *testing.T) {
+	dir := t.TempDir()
+	certFile := filepath.Join(dir, "tls.crt")
+	keyFile := filepath.Join(dir, "tls.key")
+	const publicIP = "2001:db8::42"
+
+	if err := ensureCertificate(certFile, keyFile, publicIP); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(certFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, _ := pem.Decode(data)
+	if block == nil {
+		t.Fatal("missing certificate PEM")
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := net.ParseIP(publicIP)
+	for _, got := range cert.IPAddresses {
+		if got.Equal(want) {
+			return
+		}
+	}
+	t.Fatalf("generated certificate SAN does not contain IPv6 address %s", publicIP)
+}

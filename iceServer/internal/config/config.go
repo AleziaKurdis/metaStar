@@ -32,14 +32,22 @@ func Load(path string) (Config, error) {
 	if c.ListenAddress == "" {
 		c.ListenAddress = "0.0.0.0"
 	}
+	if _, _, err := SocketNetworks(c.ListenAddress); err != nil {
+		return Config{}, err
+	}
 	if c.Port == 0 {
 		c.Port = 7337
 	}
 	if c.DataFile == "" {
 		c.DataFile = "/var/lib/overte-ice/registry.json"
 	}
-	if ip := net.ParseIP(c.AdvertiseIP); ip == nil || ip.To4() == nil {
-		return Config{}, errors.New("advertise_ip must be a public IPv4 address")
+	advertiseIP := net.ParseIP(c.AdvertiseIP)
+	if advertiseIP == nil {
+		return Config{}, errors.New("advertise_ip must be an IPv4 or IPv6 address literal")
+	}
+	listenIP := net.ParseIP(c.ListenAddress)
+	if (listenIP.To4() != nil) != (advertiseIP.To4() != nil) {
+		return Config{}, errors.New("advertise_ip and listen_address must use the same address family")
 	}
 	if c.TLSCertFile == "" || c.TLSKeyFile == "" {
 		return Config{}, errors.New("tls_cert_file and tls_key_file must be configured")
@@ -57,4 +65,18 @@ func Load(path string) (Config, error) {
 		return Config{}, errors.New("enrollment_token must contain at least 48 characters")
 	}
 	return c, nil
+}
+
+// SocketNetworks returns the explicit UDP and TCP network names for an IP
+// literal. Keeping the family explicit prevents an IPv6 configuration from
+// silently binding an IPv4-only socket (or vice versa).
+func SocketNetworks(address string) (string, string, error) {
+	ip := net.ParseIP(address)
+	if ip == nil {
+		return "", "", fmt.Errorf("listen_address must be an IPv4 or IPv6 address literal: %q", address)
+	}
+	if ip.To4() != nil {
+		return "udp4", "tcp4", nil
+	}
+	return "udp6", "tcp6", nil
 }

@@ -13,14 +13,20 @@ install -d -o overte-ice -g overte-ice -m 0750 /var/lib/overte-ice
 install -o root -g root -m 0755 "$ROOT_DIR/bin/overte-ice-server" /usr/local/bin/overte-ice-server
 
 if [[ ! -f /etc/overte-ice/config.json ]]; then
-  read -r -p "Public IPv4 address for ICE HTTPS certificate: " PUBLIC_IP
-  if ! [[ "$PUBLIC_IP" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then echo "Invalid IPv4 address" >&2; exit 1; fi
-  IFS=. read -r A B C D <<< "$PUBLIC_IP"
-  for OCTET in "$A" "$B" "$C" "$D"; do if ((10#$OCTET > 255)); then echo "Invalid IPv4 address" >&2; exit 1; fi; done
+  read -r -p "Public IPv4 or IPv6 address for ICE HTTPS certificate: " PUBLIC_IP
+  if [[ "$PUBLIC_IP" == *:* ]]; then
+    if ! [[ "$PUBLIC_IP" =~ ^[0-9A-Fa-f:]+$ ]] || ! getent ahosts "$PUBLIC_IP" >/dev/null 2>&1; then echo "Invalid IPv6 address" >&2; exit 1; fi
+    LISTEN_ADDRESS="::"
+  else
+    if ! [[ "$PUBLIC_IP" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then echo "Invalid IPv4 address" >&2; exit 1; fi
+    IFS=. read -r A B C D <<< "$PUBLIC_IP"
+    for OCTET in "$A" "$B" "$C" "$D"; do if ((10#$OCTET > 255)); then echo "Invalid IPv4 address" >&2; exit 1; fi; done
+    LISTEN_ADDRESS="0.0.0.0"
+  fi
   TOKEN=$(openssl rand -hex 32)
   cat > /etc/overte-ice/config.json <<CONFIG
 {
-  "listen_address": "0.0.0.0",
+  "listen_address": "$LISTEN_ADDRESS",
   "port": 7337,
   "advertise_ip": "$PUBLIC_IP",
   "data_file": "/var/lib/overte-ice/registry.json",

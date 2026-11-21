@@ -9,7 +9,7 @@ Standalone Go ICE service for Ubuntu 24.04 x86_64. Designed for one ICE server t
 - UDP 7337 — Overte ICE protocol
 - TCP 7337 — HTTPS enrollment and directory synchronization
 
-No Apache/Nginx is required. Router forwarding must cover both protocols. The installer asks for the public IPv4 address advertised to Overte. That address is independent of the DNS name used by Directory Services to reach the HTTPS control API.
+No Apache/Nginx is required. Firewall/router rules must cover both protocols. The installer accepts a public IPv4 or IPv6 address and selects the matching wildcard listener. For a manually edited configuration, `listen_address` and `advertise_ip` must use the same family (for example, `::` and a public IPv6 address). Each service instance binds one address family; IPv4 remains the default when an existing configuration is preserved. The Directory Service HTTPS control hostname may be a DNS name with a matching certificate.
 
 ## Protocol implementation status
 
@@ -49,7 +49,7 @@ sudo systemctl status overte-ice
 sudo journalctl -u overte-ice -f
 ```
 
-The default installation generates a self-signed certificate for the advertised public IPv4 address. For a CA-issued certificate on a DNS hostname, follow [TLS certificate setup](docs/tls-certificates.md).
+The default installation generates a self-signed certificate for the configured `advertise_ip` (IPv4 or IPv6). For a CA-issued certificate on a DNS hostname, follow [TLS certificate setup](docs/tls-certificates.md).
 
 ## Registration
 
