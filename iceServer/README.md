@@ -19,6 +19,8 @@ The Go implementation handles the unreliable, unfragmented and unobfuscated Over
 
 The server tests exercise the two-peer UDP information exchange locally, including a simulated change to the target peer's NAT-mapped source endpoint. This is still **not proof of end-to-end interoperability**. Real Domain Server and ICE client tests and real Internet NAT hole-punch tests are still required.
 
+ICE query packets do not authenticate the requesting client in the current Overte protocol. MetaStar applies a bounded per-source-IP token bucket (10 queries/second, burst of 30) to limit query-relay abuse without changing the wire format. This is an abuse-control measure, not client authentication; distributed or source-IP-spoofed traffic is not fully prevented. See docs/query-security.md.
+
 The outgoing UDP sender follows Overte's unreliable UDT sequence rules: counters start at 1, are independent per destination, are shared across packet types for that destination and wrap at 27 bits. Regression tests protect these details and the decoder's rejection of unsupported UDT flags.
 
 When a Directory Service synchronizes its complete domain list, peers whose UUID ownership changed are evicted immediately rather than remaining queryable until the normal five-second heartbeat expiry. In-flight public-key fetches are also discarded if ownership changes before they complete.
