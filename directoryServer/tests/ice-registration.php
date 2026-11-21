@@ -10,8 +10,12 @@ $dir = sys_get_temp_dir() . '/overte-ice-registration-test-' . bin2hex(random_by
 $store = new JsonStore($dir);
 
 assert(IceRegistrationService::isUuid('4784f9dc-388c-47c3-8855-373d22f31ff4'));
+assert(IceRegistrationService::isUuid('11111111-2222-1333-8444-555555555555'));
+assert(IceRegistrationService::isUuid('aaaaaaaa-bbbb-8ccc-9ddd-eeeeeeeeeeee'));
 assert(!IceRegistrationService::isUuid('not-a-domain-id'));
 assert(!IceRegistrationService::isUuid('4784f9dc-388c-47c3-8855-373d22f31ff'));
+assert(!IceRegistrationService::isUuid('11111111-2222-0333-8444-555555555555'), 'Unsupported UUID versions must be rejected.');
+assert(!IceRegistrationService::isUuid('11111111-2222-4333-7444-555555555555'), 'Invalid RFC UUID variants must be rejected.');
 
 $store->insert('domains', ['id' => '4784f9dc-388c-47c3-8855-373d22f31ff4', 'name' => 'One']);
 $store->insert('domains', ['id' => '11111111-2222-4333-8444-555555555555', 'name' => 'Two']);
