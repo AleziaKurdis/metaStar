@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.6-dev
+
+- Roll back in-memory directory ownership and credentials when the atomic registry-file save fails.
+- Persist a new Directory Service registration and its credential hash in a single write, preventing partial enrollment.
+- Added failure-path tests for failed registration updates and failed first-time enrollment.
+
 ## 0.3.5-dev
 
 - Evict active peers immediately when Directory Service enrollment or synchronization changes their UUID ownership.
