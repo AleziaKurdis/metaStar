@@ -164,14 +164,16 @@ func TestHeartbeatRefreshesCachedKeyAfterSignatureFailure(t *testing.T) {
 
 	var derMu sync.RWMutex
 	currentDER := newDER
+	requestCount := 0
 	ds := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v1/domains/4784f9dc-388c-47c3-8855-373d22f31ff4/public_key" {
 			http.NotFound(w, r)
 			return
 		}
-		derMu.RLock()
+		derMu.Lock()
+		requestCount++
 		der := append([]byte(nil), currentDER...)
-		derMu.RUnlock()
+		derMu.Unlock()
 		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]string{"public_key": base64.StdEncoding.EncodeToString(der)}})
 	}))
 	defer ds.Close()
@@ -253,6 +255,32 @@ func TestHeartbeatRefreshesCachedKeyAfterSignatureFailure(t *testing.T) {
 	ack := readTestPacket(t, client)
 	if ack.Type != protocol.PacketICEServerHeartbeatACK {
 		t.Fatalf("expected ACK after key refresh, got %d", ack.Type)
+	}
+
+	// A different stale signature must still be rejected, but the successful
+	// refresh cooldown must prevent another Directory Service request.
+	staleSignature, err := rsa.SignPKCS1v15(rand.Reader, oldKey, crypto.SHA256, digest[:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	stalePayload := append([]byte{}, signed...)
+	binary.BigEndian.PutUint32(length, uint32(len(staleSignature)))
+	stalePayload = append(stalePayload, length...)
+	stalePayload = append(stalePayload, staleSignature...)
+	staleHeartbeat := protocol.EncodeDatagram(2, protocol.PacketICEServerHeartbeat, protocol.VersionICEHeartbeat, stalePayload)
+	srv.handleDatagram(staleHeartbeat, client.LocalAddr().(*net.UDPAddr))
+	staleAck := readTestPacket(t, client)
+	if staleAck.Type != protocol.PacketICEServerHeartbeatACK {
+		t.Fatalf("expected liveness ACK for stale signature, got %d", staleAck.Type)
+	}
+
+	// Give an unintended asynchronous fetch time to reach the test server.
+	time.Sleep(100 * time.Millisecond)
+	derMu.RLock()
+	gotRequests := requestCount
+	derMu.RUnlock()
+	if gotRequests != 1 {
+		t.Fatalf("Directory Service public-key requests = %d, want 1 during cooldown", gotRequests)
 	}
 }
 
