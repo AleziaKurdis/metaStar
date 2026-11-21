@@ -30,3 +30,9 @@ jobs:
       - name: Run vet
         working-directory: iceServer
         run: go vet ./...
+      - name: Fuzz Qt stream readers
+        working-directory: iceServer
+        run: go test ./internal/qtstream -run=^$ -fuzz=FuzzQtStreamReaders -fuzztime=5s -parallel=1
+      - name: Fuzz ICE protocol parsers
+        working-directory: iceServer
+        run: go test ./internal/protocol -run=^$ -fuzz=FuzzICEProtocolInputs -fuzztime=5s -parallel=1

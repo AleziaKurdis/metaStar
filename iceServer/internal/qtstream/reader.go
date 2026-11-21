@@ -16,7 +16,10 @@ type Reader struct {
 }
 
 func (r *Reader) take(n int) ([]byte, error) {
-	if n < 0 || r.Off+n > len(r.B) {
+	// Check the offset before doing arithmetic. Reader is intentionally a small
+	// exported cursor type, so callers can construct it with an arbitrary Off.
+	// The subtraction form also avoids integer overflow in Off+n.
+	if n < 0 || r.Off < 0 || r.Off > len(r.B) || n > len(r.B)-r.Off {
 		return nil, errors.New("truncated Qt stream")
 	}
 	b := r.B[r.Off : r.Off+n]
