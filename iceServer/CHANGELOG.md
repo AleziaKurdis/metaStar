@@ -30,7 +30,7 @@
 
 - Added two-peer UDP exchange coverage for both directions of ICE peer-information delivery.
 - Verified that a changed NAT source endpoint learned from a newer valid heartbeat becomes the destination for reverse peer-information delivery.
-- Documented this source-derived behavior against the original C++ active-socket selection.
+- Documented the Go observed-address behavior against the original C++ active-socket selection.
 
 ## 0.3.2-dev
 
@@ -44,6 +44,7 @@
 - Refresh the cached Domain Server public key after a heartbeat signature failure, matching the original ICE server's key-rotation behavior.
 - Added numeric golden tests and an Overte heartbeat datagram wire-layout fixture so packet type drift cannot be hidden by tests that reuse implementation constants.
 - Documented the exact unreliable, unfragmented, unobfuscated UDP data-frame subset used by ICE and the source paths supporting it.
+- Clarified that this implementation does not implement Overte's full reliable UDT transport; the reviewed ICE message paths use unreliable packets.
 
 ## 0.3.0-dev
 
