@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,6 +29,31 @@ func TestLoadRejectsMismatchedAddressFamilies(t *testing.T) {
 	body := `{"listen_address":"::","port":7337,"advertise_ip":"203.0.113.4","tls_cert_file":"/tmp/cert","tls_key_file":"/tmp/key","enrollment_token":"012345678901234567890123456789012345678901234567"}`
 	if err := os.WriteFile(p, []byte(body), 0600); err != nil { t.Fatal(err) }
 	if _, err := Load(p); err == nil { t.Fatal("expected mismatched address family to be rejected") }
+}
+
+func TestLoadRejectsNegativeHTTPTimeouts(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "config.json")
+	base := `{"listen_address":"0.0.0.0","port":7337,"advertise_ip":"203.0.113.4","tls_cert_file":"/tmp/cert","tls_key_file":"/tmp/key","enrollment_token":"012345678901234567890123456789012345678901234567"%s}`
+	for _, field := range []string{"read_timeout_seconds", "write_timeout_seconds"} {
+		t.Run(field, func(t *testing.T) {
+			body := fmt.Sprintf(base, `, "`+field+`": -1`)
+			if err := os.WriteFile(p, []byte(body), 0600); err != nil { t.Fatal(err) }
+			if _, err := Load(p); err == nil {
+				t.Fatalf("negative %s should be rejected", field)
+			}
+		})
+	}
+}
+
+func TestLoadDefaultsZeroHTTPTimeouts(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "config.json")
+	body := `{"listen_address":"0.0.0.0","port":7337,"advertise_ip":"203.0.113.4","tls_cert_file":"/tmp/cert","tls_key_file":"/tmp/key","enrollment_token":"012345678901234567890123456789012345678901234567","read_timeout_seconds":0,"write_timeout_seconds":0}`
+	if err := os.WriteFile(p, []byte(body), 0600); err != nil { t.Fatal(err) }
+	cfg, err := Load(p)
+	if err != nil { t.Fatal(err) }
+	if cfg.ReadTimeout != 10 || cfg.WriteTimeout != 10 {
+		t.Fatalf("timeouts = %d/%d, want 10/10", cfg.ReadTimeout, cfg.WriteTimeout)
+	}
 }
 
 func TestSocketNetworks(t *testing.T) {
