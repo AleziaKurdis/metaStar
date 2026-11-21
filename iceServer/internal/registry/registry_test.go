@@ -65,7 +65,8 @@ func TestRegisterRollsBackInMemoryStateWhenPersistenceFails(t *testing.T) {
 	}
 
 	domainID := "4784f9dc-388c-47c3-8855-373d22f31ff4"
-	if err := s.Register("directory-one", "https://one.example", []string{domainID}); err != nil {
+	token, err := s.Enroll("directory-one", "https://one.example", []string{domainID})
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -91,6 +92,9 @@ func TestRegisterRollsBackInMemoryStateWhenPersistenceFails(t *testing.T) {
 	directory, ok := snapshot.Directories["directory-one"]
 	if !ok || len(directory.Domains) != 1 || directory.Domains[0] != domainID {
 		t.Fatalf("failed update changed in-memory directory: %#v", directory)
+	}
+	if !s.TokenValid("directory-one", token) {
+		t.Fatal("failed update discarded the existing enrollment credential")
 	}
 }
 
