@@ -153,17 +153,17 @@ retain their current registration token.
 - The token hash and ownership data survive ICE Server restart. A restart
   does not require re-enrollment.
 - The Directory Server token file is private application data, not a public
-  web asset. If enrollment succeeds remotely but the Directory Server cannot
-  persist the returned token, the operator must resolve the local storage
-  failure before attempting recovery; the ICE Server intentionally does not
-  issue a second token for an already-enrolled directory.
+  web asset. If enrollment succeeds remotely but the token cannot be persisted,
+  the operator can use the enrollment secret with the recovery endpoint to
+  rotate and retrieve a fresh token after fixing local storage.
 
 ## Security requirements
 
 - The Directory Server must validate the ICE Server TLS certificate and
   hostname using its configured CA trust file. Redirects are not followed.
-- The enrollment secret is used only for initial enrollment. Routine sync
-  uses the per-directory registration token.
+- The enrollment secret is used only for initial enrollment and explicit
+  credential recovery. Routine synchronization uses the per-directory
+  registration token.
 - Neither credential belongs in command-line arguments, source control,
   public configuration files, or logs. The enrollment CLI reads the initial
   secret from its environment.
