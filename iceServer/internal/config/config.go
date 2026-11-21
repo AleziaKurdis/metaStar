@@ -52,6 +52,12 @@ func Load(path string) (Config, error) {
 	if c.TLSCertFile == "" || c.TLSKeyFile == "" {
 		return Config{}, errors.New("tls_cert_file and tls_key_file must be configured")
 	}
+	if c.ReadTimeout < 0 {
+		return Config{}, errors.New("read_timeout_seconds must be zero (default) or positive")
+	}
+	if c.WriteTimeout < 0 {
+		return Config{}, errors.New("write_timeout_seconds must be zero (default) or positive")
+	}
 	if c.ReadTimeout == 0 {
 		c.ReadTimeout = 10
 	}
