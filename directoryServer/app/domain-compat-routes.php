@@ -158,8 +158,9 @@ $router->add('PUT', '/api/v1/domains/{domainId}/ice_server_address', static func
         Http::failure('Domain not authorized', 401);
     }
 
-    if (isset($input['ice_server_address']) && is_string($input['ice_server_address']) && $input['ice_server_address'] !== '') {
-        $store->update('domains', (string)$domain['id'], ['iceServerAddr' => $input['ice_server_address']]);
+    if (isset($input['ice_server_address']) && is_string($input['ice_server_address']) &&
+        DomainService::isUsableIceServerAddress($input['ice_server_address'])) {
+        $store->update('domains', (string)$domain['id'], ['iceServerAddr' => trim($input['ice_server_address'])]);
     }
     Http::success();
 });
