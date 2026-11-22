@@ -60,11 +60,25 @@ final class DomainService
         return $value;
     }
 
+    /** Return false for wildcard addresses that cannot be used by remote clients. */
+    public static function isUsableIceServerAddress(string $address): bool
+    {
+        $address = trim($address);
+        if ($address === '' || $address === '*') {
+            return false;
+        }
+        return preg_match('/^(?:0\\.0\\.0\\.0|::)(?::[0-9]{1,5})?$/i', $address) !== 1;
+    }
+
     public static function info(array $domain, JsonStore $store, array $config, bool $v1 = true): array
     {
         $created = isset($domain['whenCreated']) ? strtotime((string)$domain['whenCreated']) : false;
         $heartbeat = isset($domain['timeOfLastHeartbeat']) ? strtotime((string)$domain['timeOfLastHeartbeat']) : false;
         $ice = trim((string)($config['default_ice_server_url'] ?? ''));
+        $storedIce = trim((string)($domain['iceServerAddr'] ?? ''));
+        if (!self::isUsableIceServerAddress($storedIce)) {
+            $storedIce = $ice;
+        }
         $places = array_values(array_filter($store->all('places'), static fn(array $p): bool => ($p['domainId'] ?? '') === ($domain['id'] ?? '')));
         $placeInfo = array_map(static fn(array $place): array => self::placeInfo($place, $domain), $places);
 
@@ -73,7 +87,7 @@ final class DomainService
             'visibility' => $domain['visibility'] ?? 'open', 'world_name' => $domain['name'] ?? '',
             'label' => $domain['name'] ?? '', 'public_key' => self::fieldValue($domain, 'public_key'),
             'owner_places' => $placeInfo, 'sponsor_account_id' => $domain['sponsorAccountId'] ?? null,
-            'ice_server_address' => $domain['iceServerAddr'] ?? $ice,
+            'ice_server_address' => $storedIce,
             'version' => $domain['version'] ?? '', 'protocol_version' => $domain['protocol'] ?? '',
             'network_address' => $domain['networkAddr'] ?? '', 'network_port' => $domain['networkPort'] ?? null,
             'automatic_networking' => $domain['networkingMode'] ?? 'full',
