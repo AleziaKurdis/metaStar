@@ -9,13 +9,13 @@ Add these values to `config/local.php`:
 ```php
 'metaverse_server_url' => 'https://directory.example.org',
 'ice_control_url' => 'https://ice.example.org:7337',
-'ice_control_ca_file' => '/etc/ssl/certs/ca-certificates.crt',
+'ice_control_ca_file' => dirname(__DIR__) . '/certificates/ice-server.crt',
 'ice_directory_id' => 'my-overte-directory',
 ```
 
 - `metaverse_server_url` is the public HTTPS base URL of this Directory Server. The ICE service uses it to fetch domain public keys.
 - `ice_control_url` is the ICE HTTPS control API origin. It is **not** the same as `default_ice_server_url`, which is the address advertised to Overte clients and Domain Servers. It may use a DNS hostname with a CA-issued certificate, independently of the public IPv4 address advertised for UDP.
-- `ice_control_ca_file` must be a readable PEM CA/certificate file that trusts the ICE HTTPS certificate. On Ubuntu, the system CA bundle is normally `/etc/ssl/certs/ca-certificates.crt`; use the appropriate bundle path for the Directory Server host. TLS peer and hostname verification remain enabled. Never work around trust errors by disabling verification.
+- `ice_control_ca_file` must be a readable PEM CA/certificate file that trusts the ICE HTTPS certificate. The example configuration points to `directoryServer/certificates/ice-server.crt`. Create this folder if it is missing, then upload the ICE server's public certificate there using FTP. The folder is outside `public/`, so it is not web-accessible when the project is deployed as documented. Do not copy the ICE server's private key. TLS peer and hostname verification remain enabled; never disable verification to work around trust errors.
 - `ice_directory_id` is a stable unique identifier. Do not change it after enrollment.
 - Keep `config/local.php`, any private CA file, and the `data/ice-registration.json` token file private. The token file is created with mode 0600.
 
