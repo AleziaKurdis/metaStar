@@ -1,0 +1,12 @@
+Options -Indexes
+RewriteEngine On
+
+# Protect private application and data folders if the host's document root
+# is the project root. Prefer setting the document root to /public instead.
+RewriteRule ^(app|config|data|tests)(/|$) - [F,L]
+
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+RewriteRule ^ index.php [QSA,L]

@@ -1,0 +1,16 @@
+Options -Indexes
+RewriteEngine On
+
+# If the project root is the document root, normalize requests for real
+# public directories before forwarding them internally. This prevents
+# mod_dir from exposing the internal /public/ path in its slash redirect.
+RewriteCond %{REQUEST_URI} !/$
+RewriteCond %{DOCUMENT_ROOT}/public%{REQUEST_URI} -d
+RewriteRule ^(.+)$ /$1/ [R=301,L]
+
+# Never expose private application or storage directories.
+RewriteRule ^(app|config|data|tests)(/|$) - [F,L]
+
+# Forward all other requests into the public web root internally.
+RewriteCond %{REQUEST_URI} !^/public/
+RewriteRule ^(.*)$ public/$1 [L]
