@@ -32,6 +32,20 @@ assert($info['name'] === 'TestDomain');
 assert($info['maturity'] === 'unrated');
 assert($info['active'] === false);
 assert($info['owner_places'] === []);
+assert(DomainService::isUsableIceServerAddress('24.202.187.185'));
+assert(!DomainService::isUsableIceServerAddress('0.0.0.0'));
+assert(!DomainService::isUsableIceServerAddress('0.0.0.0:7337'));
+assert(!DomainService::isUsableIceServerAddress('::'));
+
+// A previously stored wildcard address must not override the configured default.
+$wildcardDomain = $store->update('domains', $domain['id'], ['iceServerAddr' => '0.0.0.0']);
+$wildcardInfo = DomainService::info($wildcardDomain, $store, ['default_ice_server_url' => 'https://24.202.187.185:7337']);
+assert($wildcardInfo['ice_server_address'] === 'https://24.202.187.185:7337');
+
+// A valid explicitly advertised address remains preferred over the default.
+$validDomain = $store->update('domains', $domain['id'], ['iceServerAddr' => '24.202.187.185']);
+$validInfo = DomainService::info($validDomain, $store, ['default_ice_server_url' => 'https://ice.example.com']);
+assert($validInfo['ice_server_address'] === '24.202.187.185');
 
 $activeDomain = $store->update('domains', $domain['id'], [
     'active' => true, 'timeOfLastHeartbeat' => gmdate('c'), 'networkAddr' => '127.0.0.1', 'networkPort' => 40102
