@@ -1,0 +1,13 @@
+# MetaStar Directory Server project-root rules.
+# Use this file when the project directory itself is the web document root.
+# Prefer pointing the document root directly at public/ when the host allows it.
+
+Options -Indexes
+RewriteEngine On
+
+# Never expose private application or deployment files.
+RewriteRule ^(?:app|config|data|tests|bin)(?:/|$) - [F,L]
+RewriteRule (^|/)\. - [F,L]
+
+# Serve the public tree without requiring /public in visitor-facing URLs.
+RewriteRule ^(.*)$ public/$1 [L]
