@@ -1,0 +1,16 @@
+# MetaStar Directory Server public front-controller rules.
+Options -Indexes
+DirectoryIndex index.php index.html
+RewriteEngine On
+
+# Deny dotfiles and common private/configuration artifacts.
+RewriteRule (^|/)\. - [F,L]
+<FilesMatch "^(?:\.htaccess|\.htpasswd|composer\.(?:json|lock)|config\.php|local\.php)$">
+    Require all denied
+</FilesMatch>
+
+# Existing public files and directories are served directly.
+# All other requests are handled by the PHP front controller.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [QSA,L]
