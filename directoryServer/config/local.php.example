@@ -7,7 +7,8 @@ return [
     // Separate HTTPS control endpoint used by the Directory Server CLI sync.
     'ice_control_url' => 'https://203.0.113.10:7337',
     // PEM CA/certificate file that explicitly trusts the ICE HTTPS certificate.
-    'ice_control_ca_file' => '/secure/path/ice-server-ca.crt',
+    // Public ICE server certificate copied into this private, non-public folder.
+    'ice_control_ca_file' => dirname(__DIR__) . '/certificates/ice-server.crt',
     // Stable unique ID for this Directory Service; do not change after enrollment.
     'ice_directory_id' => 'my-overte-directory',
     'storage_path' => dirname(__DIR__) . '/data',
