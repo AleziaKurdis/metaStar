@@ -91,6 +91,8 @@ type Server struct {
 	keyFetchSlots       chan struct{}
 	queryLimits         *queryLimiter
 	heartbeatDenials    *heartbeatDenialLimiter
+	udpDiagnosticMu     sync.Mutex
+	udpDiagnosticLast   map[string]time.Time
 }
 
 type registerRequest struct {
@@ -108,7 +110,7 @@ func New(cfg config.Config) (*Server, error) {
 	if e != nil {
 		return nil, e
 	}
-	return &Server{cfg: cfg, registry: r, peers: map[string]protocol.Peer{}, keys: map[string]*rsa.PublicKey{}, pending: map[string]keyRequestOwner{}, keyRetries: map[string]keyRetryState{}, keyRefreshCooldowns: map[string]keyRefreshCooldownState{}, sequences: newSequenceTracker(), queryLimits: newQueryLimiter(), heartbeatDenials: newHeartbeatDenialLimiter(time.Now()), keyFetchSlots: make(chan struct{}, maxConcurrentKeyFetches), keyClient: &http.Client{Timeout: 8 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+	return &Server{cfg: cfg, registry: r, peers: map[string]protocol.Peer{}, keys: map[string]*rsa.PublicKey{}, pending: map[string]keyRequestOwner{}, keyRetries: map[string]keyRetryState{}, keyRefreshCooldowns: map[string]keyRefreshCooldownState{}, sequences: newSequenceTracker(), queryLimits: newQueryLimiter(), heartbeatDenials: newHeartbeatDenialLimiter(time.Now()), udpDiagnosticLast: map[string]time.Time{}, keyFetchSlots: make(chan struct{}, maxConcurrentKeyFetches), keyClient: &http.Client{Timeout: 8 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if req.URL.Scheme != "https" || len(via) > 0 && !strings.EqualFold(req.URL.Host, via[0].URL.Host) {
 			return http.ErrUseLastResponse
 		}
@@ -271,6 +273,22 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
+// logUDPDiagnostic limits repeated ingress diagnostics by reason. Domain
+// Servers send heartbeats regularly, so an invalid packet must not flood the
+// journal; one message per reason every ten seconds is enough to identify it.
+func (s *Server) logUDPDiagnostic(reason, message string) {
+	now := time.Now()
+	s.udpDiagnosticMu.Lock()
+	last := s.udpDiagnosticLast[reason]
+	if now.Sub(last) < 10*time.Second {
+		s.udpDiagnosticMu.Unlock()
+		return
+	}
+	s.udpDiagnosticLast[reason] = now
+	s.udpDiagnosticMu.Unlock()
+	log.Printf("ICE UDP ingress %s", message)
+}
+
 func (s *Server) readUDP() error {
 	// Keep socket reception independent from packet processing. A single
 	// consumer preserves packet order (important for heartbeat/NAT endpoint
@@ -297,10 +315,12 @@ func (s *Server) readUDP() error {
 			return e
 		}
 		if n > protocol.MaxDatagramSize {
+			s.logUDPDiagnostic("oversize", fmt.Sprintf("discarded oversized datagram (%d bytes) from %s; maximum is %d", n, addr, protocol.MaxDatagramSize))
 			continue
 		}
 		packet, e := protocol.DecodeDatagram(buf[:n])
 		if e != nil {
+			s.logUDPDiagnostic("decode", fmt.Sprintf("could not decode datagram from %s (%d bytes): %v", addr, n, e))
 			continue
 		}
 
@@ -310,10 +330,12 @@ func (s *Server) readUDP() error {
 		switch packet.Type {
 		case protocol.PacketICEServerHeartbeat:
 			if packet.Version != protocol.VersionICEHeartbeat {
+				s.logUDPDiagnostic("heartbeat-version", fmt.Sprintf("ignored heartbeat from %s with version %d; expected %d", addr, packet.Version, protocol.VersionICEHeartbeat))
 				continue
 			}
 			heartbeat, e := protocol.ParseHeartbeat(packet.Payload)
 			if e != nil {
+				s.logUDPDiagnostic("heartbeat-parse", fmt.Sprintf("could not parse heartbeat from %s (%d-byte payload): %v", addr, len(packet.Payload), e))
 				continue
 			}
 			// Unknown UUIDs cannot become peers and need no expensive worker
@@ -323,6 +345,7 @@ func (s *Server) readUDP() error {
 			_, registered := s.registry.Owner(heartbeat.DomainID)
 			s.ownershipMu.RUnlock()
 			if !registered {
+				s.logUDPDiagnostic("unknown-domain", fmt.Sprintf("heartbeat from unregistered domain %s (%s)", heartbeat.DomainID, addr))
 				if s.heartbeatDenials.allow(time.Now()) {
 					s.sendSimple(addr, protocol.PacketICEServerHeartbeatDenied)
 				}
@@ -330,21 +353,26 @@ func (s *Server) readUDP() error {
 			}
 		case protocol.PacketICEServerQuery:
 			if packet.Version != protocol.VersionICEStandard {
+				s.logUDPDiagnostic("query-version", fmt.Sprintf("ignored ICE query from %s with version %d; expected %d", addr, packet.Version, protocol.VersionICEStandard))
 				continue
 			}
 			if _, e := protocol.ParseQuery(packet.Payload); e != nil {
+				s.logUDPDiagnostic("query-parse", fmt.Sprintf("could not parse ICE query from %s (%d-byte payload): %v", addr, len(packet.Payload), e))
 				continue
 			}
 			if !s.queryLimits.allow(addr, time.Now()) {
 				continue
 			}
 		default:
+			s.logUDPDiagnostic("packet-type", fmt.Sprintf("ignored unsupported packet type %d version %d from %s", packet.Type, packet.Version, addr))
 			continue
 		}
 
 		// When saturated, drop the newest datagram rather than spawning work
 		// or growing memory without bound. Existing queued packets keep order.
-		enqueueDatagram(queue, buf[:n], addr)
+		if !enqueueDatagram(queue, buf[:n], addr) {
+			s.logUDPDiagnostic("queue-full", fmt.Sprintf("dropped ICE UDP datagram from %s because the ingress queue is full", addr))
+		}
 	}
 }
 
