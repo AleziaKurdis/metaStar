@@ -29,7 +29,7 @@
                 <button class="nav-item active" data-section="overview">Overview</button>
                 <button class="nav-item" data-section="accounts">Accounts</button>
                 <button class="nav-item" data-section="domains">Domains</button>
-                <button class="nav-item" data-section="places">Places</button>
+                <button class="nav-item" data-section="places">Places</button>\n                <button class="nav-item" data-section="ice">ICE Server</button>
             </nav>
             <div class="sidebar-bottom"><span id="signedInAs"></span><button class="quiet-button" id="logoutButton">Sign out</button></div>
         </aside>
@@ -63,6 +63,29 @@
             <section class="section-view hidden" id="domainsSection"><div class="section-toolbar"><p class="muted">Registered domains and reported activity.</p><div class="toolbar-actions"><button class="primary-button" id="createDomainButton" type="button">Create domain</button><input class="search-input" id="domainSearch" type="search" placeholder="Search domains…" aria-label="Search domains"></div></div><div class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>Domain</th><th>Network address</th><th>Users</th><th>Visibility</th><th>Created</th><th>Actions</th></tr></thead><tbody id="domainsBody"><tr><td colspan="6" class="empty">Select Domains to load records.</td></tr></tbody></table></div><div class="table-footer" id="domainsFooter"></div></div></section>
 
             <section class="section-view hidden" id="placesSection"><div class="section-toolbar"><p class="muted">All registered places, including non-public places.</p><div class="toolbar-actions"><button class="primary-button" id="createPlaceButton" type="button">Create place</button><input class="search-input" id="placeSearch" type="search" placeholder="Search places…" aria-label="Search places"></div></div><div class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>Place</th><th>Domain</th><th>Attendance</th><th>Visibility</th><th>Created</th><th>Actions</th></tr></thead><tbody id="placesBody"><tr><td colspan="6" class="empty">Select Places to load records.</td></tr></tbody></table></div><div class="table-footer" id="placesFooter"></div></div></section>
+
+            <section class="section-view hidden" id="iceSection">
+                <div class="section-toolbar"><p class="muted">Connect this Directory Server to an ICE control service.</p></div>
+                <article class="panel ice-panel">
+                    <div class="panel-heading"><div><h3>ICE Server registration</h3><p class="muted">The control API is configured in the server's local.php file.</p></div><span class="pill warn" id="iceStatusPill">Checking…</span></div>
+                    <dl class="info-list">
+                        <div><dt>Configured ICE server</dt><dd id="iceConfiguredUrl">—</dd></div>
+                        <div><dt>Directory ID</dt><dd id="iceDirectoryId">—</dd></div>
+                        <div><dt>Registered endpoint</dt><dd id="iceRegisteredUrl">—</dd></div>
+                        <div><dt>Known domains</dt><dd id="iceDomainCount">—</dd></div>
+                    </dl>
+                    <div class="ice-notice" id="iceNotice" role="status">Loading registration status…</div>
+                    <label class="editor-field ice-secret-field" for="iceEnrollmentSecret">ICE enrollment secret
+                        <input id="iceEnrollmentSecret" type="password" autocomplete="off" spellcheck="false" placeholder="Enter the ICE enrollment secret">
+                        <small>This secret is sent to the ICE server over HTTPS for enrollment or recovery. It is not saved by the Directory Server or retained in the browser.</small>
+                    </label>
+                    <div class="ice-actions">
+                        <button class="primary-button" id="iceEnrollButton" type="button">Register with ICE Server</button>
+                        <button class="secondary-button" id="iceRecoverButton" type="button">Recover registration token</button>
+                        <button class="secondary-button" id="iceSyncButton" type="button">Synchronize domains</button>
+                    </div>
+                </article>
+            </section>
 
             <footer>Overte Directory Server · Administration</footer>
         </main>
