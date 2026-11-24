@@ -3,6 +3,7 @@ use OvertePHP\AccountActivity;
 use OvertePHP\Auth;
 use OvertePHP\DomainService;
 use OvertePHP\Http;
+use OvertePHP\IceRegistrationService;
 use OvertePHP\JsonStore;
 use OvertePHP\PlaceService;
 
