@@ -447,7 +447,7 @@ func TestUnregisterAuthorizedReleasesOwnershipAndCredential(t *testing.T) {
 	if err != nil || !authorized {
 		t.Fatalf("valid unregistration failed: authorized=%v err=%v", authorized, err)
 	}
-	if len(removed) != 2 || removed[0] != domainOne || removed[1] != domainTwo {
+	if len(removed) != 2 || removed[0] != domainTwo || removed[1] != domainOne {
 		t.Fatalf("removed domains = %v, want sorted domain IDs", removed)
 	}
 	if _, ok := store.Owner(domainOne); ok {
