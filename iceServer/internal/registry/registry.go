@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -304,6 +305,58 @@ func (s *Store) RegisterAuthorized(id, token, base string, domains []string) (bo
 		return true, err
 	}
 	return true, nil
+}
+
+// UnregisterAuthorized removes a directory and all of its domain ownership
+// only when the caller presents that directory's current registration token.
+// The in-memory snapshot is restored if the durable registry update fails.
+func (s *Store) UnregisterAuthorized(id, token string) (bool, []string, error) {
+	id = strings.TrimSpace(id)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	expected, ok := s.data.CredentialHashes[id]
+	if !ok || len(token) < 32 {
+		return false, nil, nil
+	}
+	sum := sha256.Sum256([]byte(token))
+	actual := hex.EncodeToString(sum[:])
+	if subtle.ConstantTimeCompare([]byte(expected), []byte(actual)) != 1 {
+		return false, nil, nil
+	}
+
+	directory, exists := s.data.Directories[id]
+	if !exists {
+		return false, nil, errors.New("directory is not enrolled")
+	}
+	previousOwners := make(map[string]string, len(s.data.Owners))
+	for domainID, ownerID := range s.data.Owners {
+		previousOwners[domainID] = ownerID
+	}
+
+	delete(s.data.Directories, id)
+	delete(s.data.CredentialHashes, id)
+	if err := s.rebuildOwners(); err != nil {
+		s.data.Directories[id] = directory
+		s.data.CredentialHashes[id] = expected
+		_ = s.rebuildOwners()
+		return true, nil, err
+	}
+	if err := s.saveLocked(); err != nil {
+		s.data.Directories[id] = directory
+		s.data.CredentialHashes[id] = expected
+		_ = s.rebuildOwners()
+		return true, nil, err
+	}
+
+	removed := make([]string, 0, len(directory.Domains))
+	for domainID, previousOwner := range previousOwners {
+		if previousOwner == id {
+			removed = append(removed, domainID)
+		}
+	}
+	sort.Strings(removed)
+	return true, removed, nil
 }
 
 func (s *Store) TokenValid(id, token string) bool {

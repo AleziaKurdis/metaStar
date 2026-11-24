@@ -51,6 +51,14 @@ $otherEndpoint = new IceRegistrationService($store, [
 ]);
 $changedStatus = $otherEndpoint->status();
 assert(($changedStatus['configuration_changed'] ?? false) === true, 'Changing the configured endpoint must be detected.');
+$disconnectBlocked = false;
+try {
+    $otherEndpoint->disconnect();
+} catch (RuntimeException $exception) {
+    $disconnectBlocked = str_contains($exception->getMessage(), 'differs from the saved registration endpoint');
+}
+assert($disconnectBlocked, 'Disconnect must refuse to contact a different ICE endpoint than the one that issued the token.');
+
 
 
 // Saving a recovered credential atomically replaces an earlier token file.

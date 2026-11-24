@@ -416,3 +416,93 @@ func TestSaveDoesNotFollowLegacyTemporaryFileSymlink(t *testing.T) {
 		t.Fatal("pre-existing temporary-file symlink was replaced")
 	}
 }
+
+
+func TestUnregisterAuthorizedReleasesOwnershipAndCredential(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "registry.json")
+	store, err := New(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	domainOne := "4784f9dc-388c-47c3-8855-373d22f31ff4"
+	domainTwo := "11111111-2222-4333-8444-555555555555"
+	token, err := store.Enroll("directory-one", "https://one.example", []string{domainOne, domainTwo})
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherToken, err := store.Enroll("directory-two", "https://two.example", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	authorized, removed, err := store.UnregisterAuthorized("directory-one", "incorrect-token")
+	if err != nil || authorized || len(removed) != 0 {
+		t.Fatalf("invalid credential result: authorized=%v removed=%v err=%v", authorized, removed, err)
+	}
+	if _, ok := store.Owner(domainOne); !ok {
+		t.Fatal("invalid credential changed domain ownership")
+	}
+
+	authorized, removed, err = store.UnregisterAuthorized("directory-one", token)
+	if err != nil || !authorized {
+		t.Fatalf("valid unregistration failed: authorized=%v err=%v", authorized, err)
+	}
+	if len(removed) != 2 || removed[0] != domainTwo || removed[1] != domainOne {
+		t.Fatalf("removed domains = %v, want sorted domain IDs", removed)
+	}
+	if _, ok := store.Owner(domainOne); ok {
+		t.Fatal("unregistered directory still owns its first domain")
+	}
+	if _, ok := store.Owner(domainTwo); ok {
+		t.Fatal("unregistered directory still owns its second domain")
+	}
+	if store.TokenValid("directory-one", token) {
+		t.Fatal("unregistered directory credential remains valid")
+	}
+	if !store.TokenValid("directory-two", otherToken) {
+		t.Fatal("unregistering one directory affected another directory's credential")
+	}
+
+	restarted, err := New(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := restarted.Snapshot().Directories["directory-one"]; ok {
+		t.Fatal("unregistration did not persist")
+	}
+	if !restarted.TokenValid("directory-two", otherToken) {
+		t.Fatal("other directory credential did not persist")
+	}
+}
+
+func TestUnregisterAuthorizedRollsBackWhenPersistenceFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "registry.json")
+	store, err := New(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	domainID := "4784f9dc-388c-47c3-8855-373d22f31ff4"
+	token, err := store.Enroll("directory-one", "https://one.example", []string{domainID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	authorized, _, err := store.UnregisterAuthorized("directory-one", token)
+	if !authorized || err == nil {
+		t.Fatalf("expected authorized persistence failure, got authorized=%v err=%v", authorized, err)
+	}
+	owner, ok := store.Owner(domainID)
+	if !ok || owner.ID != "directory-one" {
+		t.Fatalf("failed unregistration changed domain ownership: %#v exists=%v", owner, ok)
+	}
+	if !store.TokenValid("directory-one", token) {
+		t.Fatal("failed unregistration invalidated the previous credential")
+	}
+}

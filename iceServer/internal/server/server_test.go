@@ -15,6 +15,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"sync"
+	"strings"
 	"testing"
 	"time"
 
@@ -425,5 +426,63 @@ func TestRequestKeyFetchConcurrencyIsBounded(t *testing.T) {
 	mu.Unlock()
 	if observedMax > cap(srv.keyFetchSlots) {
 		t.Fatalf("observed %d concurrent key fetches, limit is %d", observedMax, cap(srv.keyFetchSlots))
+	}
+}
+
+
+func TestHandleUnregisterRequiresDirectoryTokenAndEvictsState(t *testing.T) {
+	cfg := config.Config{
+		ListenAddress: "127.0.0.1",
+		Port: 17340,
+		DataFile: filepath.Join(t.TempDir(), "registry.json"),
+		EnrollmentToken: "012345678901234567890123456789012345678901234567",
+	}
+	srv, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	domainID := "4784f9dc-388c-47c3-8855-373d22f31ff4"
+	token, err := srv.registry.Enroll("directory-one", "https://directory.example", []string{domainID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv.peers[domainID] = protocol.Peer{ID: domainID}
+	srv.keys[domainID] = &rsa.PublicKey{}
+	srv.keyRetries[domainID] = keyRetryState{}
+	srv.keyRefreshCooldowns[domainID] = keyRefreshCooldownState{}
+
+	body := `{"directory_id":"directory-one"}`
+	unauthorized := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/unregister", strings.NewReader(body))
+	request.Header.Set("Authorization", "Bearer wrong-token")
+	srv.handleUnregister(unauthorized, request)
+	if unauthorized.Code != http.StatusUnauthorized {
+		t.Fatalf("wrong token status = %d, want %d", unauthorized.Code, http.StatusUnauthorized)
+	}
+	if _, ok := srv.registry.Owner(domainID); !ok {
+		t.Fatal("unauthorized request removed domain ownership")
+	}
+
+	response := httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodPost, "/v1/unregister", strings.NewReader(body))
+	request.Header.Set("Authorization", "Bearer "+token)
+	srv.handleUnregister(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("valid token status = %d, body=%s", response.Code, response.Body.String())
+	}
+	if _, ok := srv.registry.Owner(domainID); ok {
+		t.Fatal("unregistered directory still owns domain")
+	}
+	if _, ok := srv.peers[domainID]; ok {
+		t.Fatal("unregistration did not evict active peer")
+	}
+	if _, ok := srv.keys[domainID]; ok {
+		t.Fatal("unregistration did not evict cached public key")
+	}
+	if _, ok := srv.keyRetries[domainID]; ok {
+		t.Fatal("unregistration did not clear key retry state")
+	}
+	if _, ok := srv.keyRefreshCooldowns[domainID]; ok {
+		t.Fatal("unregistration did not clear key refresh cooldown")
 	}
 }

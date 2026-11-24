@@ -148,6 +148,7 @@ func (s *Server) Run(ctx context.Context) error {
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.HandleFunc("POST /v1/enroll", s.handleEnroll)
 	mux.HandleFunc("POST /v1/recover", s.handleRecover)
+	mux.HandleFunc("POST /v1/unregister", s.handleUnregister)
 	mux.HandleFunc("POST /v1/register", s.handleRegister)
 	mux.HandleFunc("PUT /v1/register", s.handleRegister)
 	s.httpServer = &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: time.Duration(s.cfg.ReadTimeout) * time.Second, WriteTimeout: time.Duration(s.cfg.WriteTimeout) * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
@@ -231,6 +232,41 @@ func (s *Server) handleRecover(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("Registration credential recovered for directory %q", req.DirectoryID)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "success", "registration_token": token})
+}
+
+// handleUnregister removes one Directory Service and all of its domain
+// ownership. It is authenticated with that directory's registration token,
+// not the server-wide enrollment secret, so another directory cannot be
+// removed by a different directory's credential.
+func (s *Server) handleUnregister(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	var req struct {
+		DirectoryID string `json:"directory_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, apiResponse{Status: "error", Message: "invalid JSON"})
+		return
+	}
+	token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+	s.ownershipMu.Lock()
+	previousOwners := s.registry.Snapshot().Owners
+	authorized, removed, err := s.registry.UnregisterAuthorized(req.DirectoryID, token)
+	if !authorized {
+		s.ownershipMu.Unlock()
+		writeJSON(w, http.StatusUnauthorized, apiResponse{Status: "error", Message: "invalid registration credentials"})
+		return
+	}
+	if err != nil {
+		s.ownershipMu.Unlock()
+		writeJSON(w, http.StatusConflict, apiResponse{Status: "error", Message: err.Error()})
+		return
+	}
+	// This also clears cached public keys and pending key retries for every
+	// domain whose ownership disappeared with the directory.
+	s.evictPeersForOwnershipChanges(previousOwners)
+	s.ownershipMu.Unlock()
+	log.Printf("Directory %q unregistered; released %d domains", req.DirectoryID, len(removed))
+	writeJSON(w, http.StatusOK, map[string]any{"status": "success", "message": "directory unregistered", "domain_count": len(removed)})
 }
 
 func secureEqual(a, b string) bool {
