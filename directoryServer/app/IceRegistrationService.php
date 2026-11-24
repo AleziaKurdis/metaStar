@@ -123,6 +123,34 @@ final class IceRegistrationService
         return ['success' => true, 'domain_count' => count($this->domainIds())];
     }
 
+    /**
+     * Remove this Directory Server from the currently configured ICE server.
+     * The local credential is deleted only after the remote server confirms
+     * that it has revoked the token and released this directory's domains.
+     */
+    public function disconnect(): array
+    {
+        $record = $this->loadTokenRecord();
+        $registeredUrl = (string)($record['control_url'] ?? '');
+        if ($registeredUrl === '') {
+            throw new RuntimeException('The saved ICE registration has no recorded endpoint. Restore the original configuration or recover the registration before disconnecting.');
+        }
+        if (rtrim($registeredUrl, '/') !== $this->controlUrl) {
+            throw new RuntimeException('The configured ICE endpoint differs from the saved registration endpoint. Restore the original ICE configuration before disconnecting.');
+        }
+        $token = (string)($record['registration_token'] ?? '');
+        $response = $this->request('/v1/unregister', $token, [
+            'directory_id' => $this->directoryId
+        ]);
+        if (!@unlink($this->tokenFile)) {
+            throw new RuntimeException('The ICE server has unregistered this directory, but the local registration file could not be deleted. Remove the saved credential file manually before enrolling with another ICE server.');
+        }
+        return [
+            'success' => true,
+            'released_domain_count' => (int)($response['domain_count'] ?? 0)
+        ];
+    }
+
     /** Synchronize the full current domain list using the previously issued token. */
     public function sync(): array
     {
