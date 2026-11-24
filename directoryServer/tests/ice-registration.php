@@ -37,6 +37,21 @@ assert(is_file($tokenPath), 'Enrollment token should be persisted.');
 assert((fileperms($tokenPath) & 0777) === 0600, 'Enrollment token must be stored with mode 0600.');
 $tokenRecord = json_decode((string)file_get_contents($tokenPath), true);
 assert(($tokenRecord['registration_token'] ?? '') === str_repeat('a', 64));
+assert(($tokenRecord['control_url'] ?? '') === 'https://127.0.0.1:17337', 'The endpoint used for enrollment must be stored with the token.');
+$status = $service->status();
+assert(($status['registered'] ?? false) === true);
+assert(($status['registered_control_url'] ?? '') === 'https://127.0.0.1:17337');
+assert(($status['configuration_changed'] ?? true) === false);
+$otherEndpoint = new IceRegistrationService($store, [
+    'storage_path' => $dir,
+    'ice_control_url' => 'https://ice-two.example.test:7337',
+    'ice_control_ca_file' => __FILE__,
+    'ice_directory_id' => 'test-directory',
+    'metaverse_server_url' => 'https://directory.example.test'
+]);
+$changedStatus = $otherEndpoint->status();
+assert(($changedStatus['configuration_changed'] ?? false) === true, 'Changing the configured endpoint must be detected.');
+
 
 // Saving a recovered credential atomically replaces an earlier token file.
 $saveToken->invoke($service, str_repeat('b', 64));

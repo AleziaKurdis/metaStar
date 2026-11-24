@@ -3,6 +3,7 @@ use OvertePHP\AccountActivity;
 use OvertePHP\Auth;
 use OvertePHP\DomainService;
 use OvertePHP\Http;
+use OvertePHP\IceRegistrationService;
 use OvertePHP\JsonStore;
 use OvertePHP\PlaceService;
 
@@ -79,4 +80,54 @@ $router->add('GET', '/api/v1/admin/places', static function (array $params, Json
         'total_pages' => max(1, (int)ceil($total / $perPage)),
         'total_entries' => $total
     ]);
+});
+
+
+$router->add('GET', '/api/v1/admin/ice/status', static function (array $params, JsonStore $store, Auth $auth, array $config) use ($requireDashboardAdmin): never {
+    $requireDashboardAdmin($auth);
+    try {
+        $service = new IceRegistrationService($store, $config);
+        Http::success($service->status());
+    } catch (\Throwable $error) {
+        Http::success([
+            'configured' => false,
+            'registered' => false,
+            'message' => $error->getMessage()
+        ]);
+    }
+});
+
+$router->add('POST', '/api/v1/admin/ice/enroll', static function (array $params, JsonStore $store, Auth $auth, array $config) use ($requireDashboardAdmin): never {
+    $requireDashboardAdmin($auth);
+    $body = Http::body();
+    try {
+        $service = new IceRegistrationService($store, $config);
+        $result = $service->enroll((string)($body['enrollment_secret'] ?? ''));
+        Http::success($result);
+    } catch (\Throwable $error) {
+        Http::failure($error->getMessage(), 400);
+    }
+});
+
+$router->add('POST', '/api/v1/admin/ice/recover', static function (array $params, JsonStore $store, Auth $auth, array $config) use ($requireDashboardAdmin): never {
+    $requireDashboardAdmin($auth);
+    $body = Http::body();
+    try {
+        $service = new IceRegistrationService($store, $config);
+        $result = $service->recover((string)($body['enrollment_secret'] ?? ''));
+        Http::success($result);
+    } catch (\Throwable $error) {
+        Http::failure($error->getMessage(), 400);
+    }
+});
+
+$router->add('POST', '/api/v1/admin/ice/sync', static function (array $params, JsonStore $store, Auth $auth, array $config) use ($requireDashboardAdmin): never {
+    $requireDashboardAdmin($auth);
+    try {
+        $service = new IceRegistrationService($store, $config);
+        $result = $service->sync();
+        Http::success($result);
+    } catch (\Throwable $error) {
+        Http::failure($error->getMessage(), 400);
+    }
 });

@@ -33,6 +33,34 @@ final class IceRegistrationService
         $this->validateConfiguration();
     }
 
+    /** Return safe registration metadata; never expose the stored credential. */
+    public function status(): array
+    {
+        $record = null;
+        if (is_file($this->tokenFile) && is_readable($this->tokenFile)) {
+            try {
+                $decoded = json_decode((string)file_get_contents($this->tokenFile), true, 512, JSON_THROW_ON_ERROR);
+                if (is_array($decoded) && ($decoded['directory_id'] ?? '') === $this->directoryId &&
+                    preg_match('/^[a-f0-9]{64}$/i', (string)($decoded['registration_token'] ?? '')) === 1) {
+                    $record = $decoded;
+                }
+            } catch (\JsonException $exception) {
+                throw new RuntimeException('The ICE registration record is invalid.', 0, $exception);
+            }
+        }
+        $registeredUrl = (string)($record['control_url'] ?? '');
+        return [
+            'configured' => true,
+            'control_url' => $this->controlUrl,
+            'directory_id' => $this->directoryId,
+            'registered' => $record !== null,
+            'registered_control_url' => $registeredUrl,
+            'configuration_changed' => $record !== null && $registeredUrl !== '' && rtrim($registeredUrl, '/') !== $this->controlUrl,
+            'legacy_record' => $record !== null && $registeredUrl === '',
+            'domain_count' => count($this->domainIds())
+        ];
+    }
+
     /** @return string[] Complete, unique, sorted domain UUID list. */
     public function domainIds(): array
     {
@@ -184,6 +212,7 @@ final class IceRegistrationService
     {
         $json = json_encode([
             'directory_id' => $this->directoryId,
+            'control_url' => $this->controlUrl,
             'registration_token' => $token
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL;
         $temporary = $this->tokenFile . '.' . bin2hex(random_bytes(6)) . '.tmp';
