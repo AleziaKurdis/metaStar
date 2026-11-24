@@ -138,7 +138,7 @@ $router->add('POST', '/api/v1/admin/ice/disconnect', static function (array $par
     try {
         $service = new IceRegistrationService($store, $config);
         Http::success($service->disconnect());
-    } catch (\\Throwable $error) {
+    } catch (\Throwable $error) {
         Http::failure($error->getMessage(), 400);
     }
 });
