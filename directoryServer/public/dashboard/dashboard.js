@@ -171,8 +171,7 @@
             showMessage(error.message);
         } finally {
             button.textContent = original;
-            button.disabled = false;
-            try { await loadIceStatus(); } catch (_) {}
+            try { await loadIceStatus(); } catch (_) { button.disabled = false; }
         }
     }
 
