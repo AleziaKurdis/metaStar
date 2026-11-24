@@ -668,7 +668,8 @@
             if (section === 'overview') await loadOverview();
             if (section === 'accounts') await loadAccounts();
             if (section === 'domains') await loadDomains();
-            if (section === 'places') await loadPlaces();\n            if (section === 'ice') await loadIceStatus();
+            if (section === 'places') await loadPlaces();
+            if (section === 'ice') await loadIceStatus();
         } catch (error) {
             if (/not logged in|unauthorized|administrator/i.test(error.message)) logout();
             else showMessage(error.message);
@@ -681,7 +682,16 @@
     document.querySelectorAll('.nav-item').forEach(button => button.addEventListener('click', () => activateSection(button.dataset.section)));
     byId('accountSearch').addEventListener('input', renderAccounts);
     byId('domainSearch').addEventListener('input', renderDomains);
-    byId('placeSearch').addEventListener('input', renderPlaces);\n    byId('iceEnrollButton').addEventListener('click', () => {\n        if (!byId('iceEnrollmentSecret').value.trim()) { showMessage('Enter the ICE enrollment secret first.'); return; }\n        if (window.confirm('Register this Directory Server with the configured ICE server?')) runIceAction('enroll', 'iceEnrollButton', 'ICE enrollment succeeded.', true);\n    });\n    byId('iceRecoverButton').addEventListener('click', () => {\n        if (!byId('iceEnrollmentSecret').value.trim()) { showMessage('Enter the ICE enrollment secret first.'); return; }\n        if (window.confirm('Recover the registration token? This invalidates the previous token on the configured ICE server.')) runIceAction('recover', 'iceRecoverButton', 'ICE registration token recovered.', true);\n    });\n    byId('iceSyncButton').addEventListener('click', () => runIceAction('sync', 'iceSyncButton', 'ICE domain list synchronized.'));
+    byId('placeSearch').addEventListener('input', renderPlaces);
+    byId('iceEnrollButton').addEventListener('click', () => {
+        if (!byId('iceEnrollmentSecret').value.trim()) { showMessage('Enter the ICE enrollment secret first.'); return; }
+        if (window.confirm('Register this Directory Server with the configured ICE server?')) runIceAction('enroll', 'iceEnrollButton', 'ICE enrollment succeeded.', true);
+    });
+    byId('iceRecoverButton').addEventListener('click', () => {
+        if (!byId('iceEnrollmentSecret').value.trim()) { showMessage('Enter the ICE enrollment secret first.'); return; }
+        if (window.confirm('Recover the registration token? This invalidates the previous token on the configured ICE server.')) runIceAction('recover', 'iceRecoverButton', 'ICE registration token recovered.', true);
+    });
+    byId('iceSyncButton').addEventListener('click', () => runIceAction('sync', 'iceSyncButton', 'ICE domain list synchronized.'));
     byId('createDomainButton').addEventListener('click', () => openEditor('create-domain', {}));
     byId('createPlaceButton').addEventListener('click', async () => {
         try {
