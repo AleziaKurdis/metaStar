@@ -150,9 +150,11 @@
         byId('iceEnrollButton').disabled = !status.configured || status.registered;
         byId('iceRecoverButton').disabled = !status.configured;
         byId('iceSyncButton').disabled = !status.configured || !status.registered || status.configuration_changed || status.legacy_record;
+        byId('iceDisconnectButton').disabled = !status.configured || !status.registered || status.configuration_changed || status.legacy_record;
         if (status.legacy_record) {
             byId('iceNotice').textContent = 'A previous registration token exists, but its ICE endpoint was not recorded. Recovering or switching requires care; the next ICE administration stage will handle this safely.';
             byId('iceSyncButton').disabled = true;
+            byId('iceDisconnectButton').disabled = true;
         }
     }
 
@@ -165,7 +167,8 @@
             const body = includeSecret ? { enrollment_secret: byId('iceEnrollmentSecret').value } : {};
             const result = await request(API + '/admin/ice/' + action, { method: 'POST', body: JSON.stringify(body) });
             byId('iceEnrollmentSecret').value = '';
-            showMessage(successMessage + ' ' + numberText(result.domain_count) + ' domain(s).');
+            const affected = result.domain_count ?? result.released_domain_count;
+            showMessage(successMessage + (affected === undefined ? '' : ' ' + numberText(affected) + ' domain(s).'));
             await loadIceStatus();
         } catch (error) {
             showMessage(error.message);
@@ -693,6 +696,11 @@
         if (window.confirm('Recover the registration token? This invalidates the previous token on the configured ICE server.')) runIceAction('recover', 'iceRecoverButton', 'ICE registration token recovered.', true);
     });
     byId('iceSyncButton').addEventListener('click', () => runIceAction('sync', 'iceSyncButton', 'ICE domain list synchronized.'));
+    byId('iceDisconnectButton').addEventListener('click', () => {
+        if (window.confirm('Disconnect this Directory Server from the configured ICE server? The ICE server will revoke this registration token, release all its domain UUIDs, and remove its active peers. You must do this BEFORE changing ice_control_url.')) {
+            runIceAction('disconnect', 'iceDisconnectButton', 'Directory Server disconnected from ICE.');
+        }
+    });
     byId('createDomainButton').addEventListener('click', () => openEditor('create-domain', {}));
     byId('createPlaceButton').addEventListener('click', async () => {
         try {
