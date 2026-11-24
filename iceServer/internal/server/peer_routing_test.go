@@ -83,10 +83,10 @@ func TestPeerInformationUsesCurrentObservedSocket(t *testing.T) {
 	requester := listenTestUDP(t)
 	defer requester.Close()
 
-	domainPublic := []byte{1, 203, 0, 113, 10, 0x1c, 0x9c}
-	domainLocal := []byte{1, 192, 168, 10, 20, 0x1c, 0x9c}
-	requesterPublic := []byte{1, 198, 51, 100, 20, 0x1c, 0x9d}
-	requesterLocal := []byte{1, 192, 168, 20, 30, 0x1c, 0x9d}
+	domainPublic := []byte{0, 203, 0, 113, 10, 0x1c, 0x9c}
+	domainLocal := []byte{0, 192, 168, 10, 20, 0x1c, 0x9c}
+	requesterPublic := []byte{0, 198, 51, 100, 20, 0x1c, 0x9d}
+	requesterLocal := []byte{0, 192, 168, 20, 30, 0x1c, 0x9d}
 
 	heartbeat := makeSignedHeartbeat(t, domainID, domainPublic, domainLocal, privateKey)
 	for _, endpoint := range []*net.UDPConn{oldEndpoint, currentEndpoint} {
@@ -193,8 +193,8 @@ func TestUnregisteredHeartbeatGetsVersionedDenial(t *testing.T) {
 		t.Fatal(err)
 	}
 	heartbeat := makeSignedHeartbeat(t, "4784f9dc-388c-47c3-8855-373d22f31ff4",
-		[]byte{1, 203, 0, 113, 10, 0x1c, 0x9c},
-		[]byte{1, 192, 168, 10, 20, 0x1c, 0x9c}, key)
+		[]byte{0, 203, 0, 113, 10, 0x1c, 0x9c},
+		[]byte{0, 192, 168, 10, 20, 0x1c, 0x9c}, key)
 
 	_ = endpoint.SetReadDeadline(time.Now().Add(2 * time.Second))
 	srv.handleDatagram(heartbeat, endpoint.LocalAddr().(*net.UDPAddr))
