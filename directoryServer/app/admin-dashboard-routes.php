@@ -131,3 +131,14 @@ $router->add('POST', '/api/v1/admin/ice/sync', static function (array $params, J
         Http::failure($error->getMessage(), 400);
     }
 });
+
+
+$router->add('POST', '/api/v1/admin/ice/disconnect', static function (array $params, JsonStore $store, Auth $auth, array $config) use ($requireDashboardAdmin): never {
+    $requireDashboardAdmin($auth);
+    try {
+        $service = new IceRegistrationService($store, $config);
+        Http::success($service->disconnect());
+    } catch (\\Throwable $error) {
+        Http::failure($error->getMessage(), 400);
+    }
+});
