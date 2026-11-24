@@ -88,7 +88,7 @@ $router->add('GET', '/api/v1/admin/ice/status', static function (array $params, 
     try {
         $service = new IceRegistrationService($store, $config);
         Http::success($service->status());
-    } catch (\\Throwable $error) {
+    } catch (\Throwable $error) {
         Http::success([
             'configured' => false,
             'registered' => false,
@@ -104,7 +104,7 @@ $router->add('POST', '/api/v1/admin/ice/enroll', static function (array $params,
         $service = new IceRegistrationService($store, $config);
         $result = $service->enroll((string)($body['enrollment_secret'] ?? ''));
         Http::success($result);
-    } catch (\\Throwable $error) {
+    } catch (\Throwable $error) {
         Http::failure($error->getMessage(), 400);
     }
 });
@@ -116,7 +116,7 @@ $router->add('POST', '/api/v1/admin/ice/recover', static function (array $params
         $service = new IceRegistrationService($store, $config);
         $result = $service->recover((string)($body['enrollment_secret'] ?? ''));
         Http::success($result);
-    } catch (\\Throwable $error) {
+    } catch (\Throwable $error) {
         Http::failure($error->getMessage(), 400);
     }
 });
@@ -127,7 +127,7 @@ $router->add('POST', '/api/v1/admin/ice/sync', static function (array $params, J
         $service = new IceRegistrationService($store, $config);
         $result = $service->sync();
         Http::success($result);
-    } catch (\\Throwable $error) {
+    } catch (\Throwable $error) {
         Http::failure($error->getMessage(), 400);
     }
 });
