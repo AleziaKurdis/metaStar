@@ -60,7 +60,7 @@ func TestFetchPublicKeyAcceptsValidResponse(t *testing.T) {
 
 func TestParseHeartbeatQtStream(t *testing.T) {
 	uuid := []byte{0x47, 0x84, 0xf9, 0xdc, 0x38, 0x8c, 0x47, 0xc3, 0x88, 0x55, 0x37, 0x3d, 0x22, 0xf3, 0x1f, 0xf4}
-	sock := []byte{1, 192, 168, 1, 20, 0x1c, 0x9c}
+	sock := []byte{0, 192, 168, 1, 20, 0x1c, 0x9c}
 	payload := append([]byte{}, uuid...)
 	payload = append(payload, sock...)
 	payload = append(payload, sock...)
@@ -90,7 +90,7 @@ func TestParseHeartbeatQtStream(t *testing.T) {
 
 func TestParseQuery(t *testing.T) {
 	uuid := []byte{0x47, 0x84, 0xf9, 0xdc, 0x38, 0x8c, 0x47, 0xc3, 0x88, 0x55, 0x37, 0x3d, 0x22, 0xf3, 0x1f, 0xf4}
-	sock := []byte{1, 192, 168, 1, 20, 0x1c, 0x9c}
+	sock := []byte{0, 192, 168, 1, 20, 0x1c, 0x9c}
 	payload := append([]byte{}, uuid...)
 	payload = append(payload, sock...)
 	payload = append(payload, sock...)
@@ -107,7 +107,7 @@ func TestParseQuery(t *testing.T) {
 
 func TestParseQueryRejectsInvalidUUIDs(t *testing.T) {
 	valid := []byte{0x47, 0x84, 0xf9, 0xdc, 0x38, 0x8c, 0x47, 0xc3, 0x88, 0x55, 0x37, 0x3d, 0x22, 0xf3, 0x1f, 0xf4}
-	sock := []byte{1, 192, 168, 1, 20, 0x1c, 0x9c}
+	sock := []byte{0, 192, 168, 1, 20, 0x1c, 0x9c}
 	makePayload := func(sender, target []byte) []byte {
 		payload := append([]byte{}, sender...)
 		payload = append(payload, sock...)
@@ -143,7 +143,7 @@ func TestParseQueryRejectsInvalidUUIDs(t *testing.T) {
 
 func TestParseHeartbeatRejectsInvalidDomainUUIDs(t *testing.T) {
 	valid := []byte{0x47, 0x84, 0xf9, 0xdc, 0x38, 0x8c, 0x47, 0xc3, 0x88, 0x55, 0x37, 0x3d, 0x22, 0xf3, 0x1f, 0xf4}
-	sock := []byte{1, 192, 168, 1, 20, 0x1c, 0x9c}
+	sock := []byte{0, 192, 168, 1, 20, 0x1c, 0x9c}
 	makePayload := func(domainID []byte) []byte {
 		payload := append([]byte{}, domainID...)
 		payload = append(payload, sock...)
