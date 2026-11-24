@@ -282,12 +282,18 @@ final class IceRegistrationService
 
     private function loadToken(): string
     {
+        $record = $this->loadTokenRecord();
+        return (string)$record['registration_token'];
+    }
+
+    private function loadTokenRecord(): array
+    {
         if (!is_file($this->tokenFile) || !is_readable($this->tokenFile)) {
             throw new RuntimeException('No ICE registration token found. Run the enroll command once first.');
         }
         try {
             $record = json_decode((string)file_get_contents($this->tokenFile), true, 512, JSON_THROW_ON_ERROR);
-        } catch (\JsonException $exception) {
+        } catch (\\JsonException $exception) {
             throw new RuntimeException('The ICE registration token file is invalid.', 0, $exception);
         }
         if (!is_array($record) || ($record['directory_id'] ?? '') !== $this->directoryId) {
@@ -297,6 +303,6 @@ final class IceRegistrationService
         if (preg_match('/^[a-f0-9]{64}$/i', $token) !== 1) {
             throw new RuntimeException('The saved ICE registration token is malformed.');
         }
-        return $token;
+        return $record;
     }
 }
