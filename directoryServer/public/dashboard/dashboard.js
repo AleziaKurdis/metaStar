@@ -170,6 +170,7 @@
         } catch (error) {
             showMessage(error.message);
         } finally {
+            if (includeSecret) byId('iceEnrollmentSecret').value = '';
             button.textContent = original;
             try { await loadIceStatus(); } catch (_) { button.disabled = false; }
         }
