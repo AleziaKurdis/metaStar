@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -354,6 +355,7 @@ func (s *Store) UnregisterAuthorized(id, token string) (bool, []string, error) {
 			removed = append(removed, domainID)
 		}
 	}
+	sort.Strings(removed)
 	return true, removed, nil
 }
 
