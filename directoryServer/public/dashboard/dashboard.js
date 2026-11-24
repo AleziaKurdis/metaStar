@@ -132,6 +132,50 @@
         byId('utcTime').textContent = server.server_time ? new Date(server.server_time).toISOString().replace('T', ' ').replace('.000Z', ' UTC') : '—';
     }
 
+    async function loadIceStatus() {
+        const status = await request(API + '/admin/ice/status');
+        const pill = byId('iceStatusPill');
+        byId('iceConfiguredUrl').textContent = status.control_url || 'Not configured';
+        byId('iceDirectoryId').textContent = status.directory_id || '—';
+        byId('iceRegisteredUrl').textContent = status.registered_control_url || (status.legacy_record ? 'Existing registration (endpoint not recorded)' : '—');
+        byId('iceDomainCount').textContent = numberText(status.domain_count);
+        byId('iceNotice').textContent = status.message || (
+            !status.configured ? 'ICE configuration is incomplete. Check the ICE URL, certificate and Directory ID in local.php.' :
+            status.configuration_changed ? 'The configured ICE endpoint differs from the endpoint used for the saved registration. Switching servers is not available yet; do not enroll again until the old registration can be safely released.' :
+            status.registered ? 'This Directory Server has a saved registration with the configured ICE server.' :
+            'This Directory Server is not registered with the configured ICE server.'
+        );
+        pill.textContent = !status.configured ? 'Not configured' : (status.configuration_changed ? 'Endpoint changed' : (status.registered ? 'Registered' : 'Not registered'));
+        pill.className = 'pill' + (status.registered && !status.configuration_changed ? ' good' : ' warn');
+        byId('iceEnrollButton').disabled = !status.configured || status.registered;
+        byId('iceRecoverButton').disabled = !status.configured;
+        byId('iceSyncButton').disabled = !status.configured || !status.registered || status.configuration_changed || status.legacy_record;
+        if (status.legacy_record) {
+            byId('iceNotice').textContent = 'A previous registration token exists, but its ICE endpoint was not recorded. Recovering or switching requires care; the next ICE administration stage will handle this safely.';
+            byId('iceSyncButton').disabled = true;
+        }
+    }
+
+    async function runIceAction(action, buttonId, successMessage, includeSecret = false) {
+        const button = byId(buttonId);
+        button.disabled = true;
+        const original = button.textContent;
+        button.textContent = 'Working…';
+        try {
+            const body = includeSecret ? { enrollment_secret: byId('iceEnrollmentSecret').value } : {};
+            const result = await request(API + '/admin/ice/' + action, { method: 'POST', body: JSON.stringify(body) });
+            byId('iceEnrollmentSecret').value = '';
+            showMessage(successMessage + ' ' + numberText(result.domain_count) + ' domain(s).');
+            await loadIceStatus();
+        } catch (error) {
+            showMessage(error.message);
+        } finally {
+            button.textContent = original;
+            button.disabled = false;
+            try { await loadIceStatus(); } catch (_) {}
+        }
+    }
+
     async function loadAccounts() {
         const data = await request(API + '/accounts?asAdmin=true&page=1&per_page=100');
         cache.accounts = data.accounts || [];
@@ -625,7 +669,7 @@
             if (section === 'overview') await loadOverview();
             if (section === 'accounts') await loadAccounts();
             if (section === 'domains') await loadDomains();
-            if (section === 'places') await loadPlaces();
+            if (section === 'places') await loadPlaces();\n            if (section === 'ice') await loadIceStatus();
         } catch (error) {
             if (/not logged in|unauthorized|administrator/i.test(error.message)) logout();
             else showMessage(error.message);
@@ -638,7 +682,7 @@
     document.querySelectorAll('.nav-item').forEach(button => button.addEventListener('click', () => activateSection(button.dataset.section)));
     byId('accountSearch').addEventListener('input', renderAccounts);
     byId('domainSearch').addEventListener('input', renderDomains);
-    byId('placeSearch').addEventListener('input', renderPlaces);
+    byId('placeSearch').addEventListener('input', renderPlaces);\n    byId('iceEnrollButton').addEventListener('click', () => {\n        if (!byId('iceEnrollmentSecret').value.trim()) { showMessage('Enter the ICE enrollment secret first.'); return; }\n        if (window.confirm('Register this Directory Server with the configured ICE server?')) runIceAction('enroll', 'iceEnrollButton', 'ICE enrollment succeeded.', true);\n    });\n    byId('iceRecoverButton').addEventListener('click', () => {\n        if (!byId('iceEnrollmentSecret').value.trim()) { showMessage('Enter the ICE enrollment secret first.'); return; }\n        if (window.confirm('Recover the registration token? This invalidates the previous token on the configured ICE server.')) runIceAction('recover', 'iceRecoverButton', 'ICE registration token recovered.', true);\n    });\n    byId('iceSyncButton').addEventListener('click', () => runIceAction('sync', 'iceSyncButton', 'ICE domain list synchronized.'));
     byId('createDomainButton').addEventListener('click', () => openEditor('create-domain', {}));
     byId('createPlaceButton').addEventListener('click', async () => {
         try {
