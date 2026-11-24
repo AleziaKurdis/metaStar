@@ -42,15 +42,13 @@ func (r *Reader) Socket() (string, []byte, error) {
 	}
 	var ip net.IP
 	switch p[0] {
-	case 0, 3: // UnknownNetworkLayerProtocol / AnyIPProtocol
-		ip = net.IPv4zero
-	case 1: // QHostAddress::IPv4Protocol
+	case 0: // QHostAddress::IPv4Protocol
 		b, e := r.take(4)
 		if e != nil {
 			return "", nil, e
 		}
 		ip = net.IPv4(b[0], b[1], b[2], b[3])
-	case 2: // QHostAddress::IPv6Protocol
+	case 1: // QHostAddress::IPv6Protocol
 		b, e := r.take(16)
 		if e != nil {
 			return "", nil, e
@@ -60,6 +58,8 @@ func (r *Reader) Socket() (string, []byte, error) {
 		if _, e = r.QString(); e != nil {
 			return "", nil, e
 		}
+	case 2, 255: // AnyIPProtocol / UnknownNetworkLayerProtocol (-1 as qint8)
+		ip = net.IPv4zero
 	default:
 		return "", nil, fmt.Errorf("unsupported QHostAddress protocol value %d", p[0])
 	}
