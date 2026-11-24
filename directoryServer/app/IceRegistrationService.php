@@ -44,7 +44,7 @@ final class IceRegistrationService
                     preg_match('/^[a-f0-9]{64}$/i', (string)($decoded['registration_token'] ?? '')) === 1) {
                     $record = $decoded;
                 }
-            } catch (\\JsonException $exception) {
+            } catch (\JsonException $exception) {
                 throw new RuntimeException('The ICE registration record is invalid.', 0, $exception);
             }
         }
