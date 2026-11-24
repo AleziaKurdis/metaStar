@@ -212,6 +212,7 @@ final class IceRegistrationService
     {
         $json = json_encode([
             'directory_id' => $this->directoryId,
+            'control_url' => $this->controlUrl,
             'registration_token' => $token
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL;
         $temporary = $this->tokenFile . '.' . bin2hex(random_bytes(6)) . '.tmp';
