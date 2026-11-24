@@ -231,7 +231,7 @@ final class IceRegistrationService
         }
         if ($status !== 200 || !is_array($decoded) || ($decoded['status'] ?? '') !== 'success') {
             $message = is_array($decoded) ? (string)($decoded['message'] ?? 'Request rejected.') : 'Request rejected.';
-            throw new RuntimeException('ICE rejected the registration request (HTTP ' . $status . '): ' . $message);
+            throw new RuntimeException('ICE rejected the control request (HTTP ' . $status . '): ' . $message);
         }
         return $decoded;
     }
@@ -289,7 +289,7 @@ final class IceRegistrationService
     private function loadTokenRecord(): array
     {
         if (!is_file($this->tokenFile) || !is_readable($this->tokenFile)) {
-            throw new RuntimeException('No ICE registration token found. Run the enroll command once first.');
+            throw new RuntimeException('No ICE registration token found. Register this Directory Server with the ICE Server first.');
         }
         try {
             $record = json_decode((string)file_get_contents($this->tokenFile), true, 512, JSON_THROW_ON_ERROR);
