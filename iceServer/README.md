@@ -57,7 +57,7 @@ The default installation generates a self-signed certificate for the configured 
 
 ## Registration
 
-See `docs/enrollment.md`. New directories call `/v1/enroll` using the shared bootstrap secret, receive their own token, and then call `/v1/register` to update the domain list. No ICE restart is needed.
+See `docs/enrollment.md`. New directories call `/v1/enroll` using the shared bootstrap secret, receive their own token, and then call `/v1/register` to update the domain list. A directory can remove itself with `/v1/unregister` using its current directory-specific registration token; the operation revokes that token, releases its domain UUID ownership, and evicts its active peers. No ICE restart is needed.
 
 ## Current limitations
 
