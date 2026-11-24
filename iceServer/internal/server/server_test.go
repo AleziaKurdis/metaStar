@@ -65,7 +65,7 @@ func TestHeartbeatKeyFetchAckAndPeerQuery(t *testing.T) {
 
 	domainID := "4784f9dc-388c-47c3-8855-373d22f31ff4"
 	clientID := "11111111-2222-4333-8444-555555555555"
-	sock := []byte{1, 203, 0, 113, 10, 0x1c, 0x9c}
+	sock := []byte{0, 203, 0, 113, 10, 0x1c, 0x9c}
 	signed, err := qtstream.UUIDBytes(domainID)
 	if err != nil {
 		t.Fatal(err)
@@ -207,7 +207,7 @@ func TestHeartbeatRefreshesCachedKeyAfterSignatureFailure(t *testing.T) {
 	srv.keys[domainID] = &oldKey.PublicKey
 	srv.keysMu.Unlock()
 
-	sock := []byte{1, 203, 0, 113, 10, 0x1c, 0x9c}
+	sock := []byte{0, 203, 0, 113, 10, 0x1c, 0x9c}
 	signed, err := qtstream.UUIDBytes(domainID)
 	if err != nil {
 		t.Fatal(err)
