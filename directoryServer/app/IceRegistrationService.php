@@ -293,7 +293,7 @@ final class IceRegistrationService
         }
         try {
             $record = json_decode((string)file_get_contents($this->tokenFile), true, 512, JSON_THROW_ON_ERROR);
-        } catch (\\JsonException $exception) {
+        } catch (\JsonException $exception) {
             throw new RuntimeException('The ICE registration token file is invalid.', 0, $exception);
         }
         if (!is_array($record) || ($record['directory_id'] ?? '') !== $this->directoryId) {
