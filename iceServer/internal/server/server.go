@@ -129,19 +129,20 @@ func (s *Server) Run(ctx context.Context) error {
 	if e != nil {
 		return e
 	}
-	addr := net.JoinHostPort(s.cfg.ListenAddress, fmt.Sprintf("%d", s.cfg.Port))
-	udpAddr, e := net.ResolveUDPAddr(udpNetwork, addr)
+	udpAddrText := net.JoinHostPort(s.cfg.ListenAddress, fmt.Sprintf("%d", s.cfg.UDPPort))
+	controlAddr := net.JoinHostPort(s.cfg.ListenAddress, fmt.Sprintf("%d", s.cfg.ControlPort))
+	udpAddr, e := net.ResolveUDPAddr(udpNetwork, udpAddrText)
 	if e != nil {
 		return e
 	}
 	s.udp, e = net.ListenUDP(udpNetwork, udpAddr)
 	if e != nil {
-		return fmt.Errorf("bind UDP %s: %w", addr, e)
+		return fmt.Errorf("bind UDP %s: %w", udpAddrText, e)
 	}
-	tcpListener, e := net.Listen(tcpNetwork, addr)
+	tcpListener, e := net.Listen(tcpNetwork, controlAddr)
 	if e != nil {
 		s.udp.Close()
-		return fmt.Errorf("bind TCP %s: %w", addr, e)
+		return fmt.Errorf("bind HTTPS control API TCP %s: %w", controlAddr, e)
 	}
 	tlsListener := tls.NewListener(tcpListener, tlsCfg)
 	mux := http.NewServeMux()
@@ -152,7 +153,7 @@ func (s *Server) Run(ctx context.Context) error {
 	mux.HandleFunc("POST /v1/register", s.handleRegister)
 	mux.HandleFunc("PUT /v1/register", s.handleRegister)
 	s.httpServer = &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: time.Duration(s.cfg.ReadTimeout) * time.Second, WriteTimeout: time.Duration(s.cfg.WriteTimeout) * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
-	log.Printf("Overte ICE Server listening: %s UDP and %s HTTPS on %s", udpNetwork, tcpNetwork, addr)
+	log.Printf("Overte ICE Server listening: %s UDP on %s and %s HTTPS control API on %s", udpNetwork, udpAddrText, tcpNetwork, controlAddr)
 	errCh := make(chan error, 2)
 	go func() { errCh <- s.readUDP() }()
 	go func() { errCh <- s.httpServer.Serve(tlsListener) }()
