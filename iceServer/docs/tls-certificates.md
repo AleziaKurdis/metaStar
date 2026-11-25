@@ -1,6 +1,6 @@
 # TLS certificates for the ICE control API
 
-The ICE server exposes its enrollment and synchronization API over HTTPS on TCP port 7337. TLS is separate from the Overte ICE protocol on UDP port 7337. The Go service listens directly on TCP 443; no reverse proxy is required.
+The ICE server exposes its enrollment and synchronization API over HTTPS on TCP port 443. TLS is separate from the Overte ICE protocol on UDP port 7337. The Go service listens directly on TCP 443; no reverse proxy is required.
 
 ## Option A: installer-generated self-signed certificate
 
