@@ -450,11 +450,10 @@ func (s *Server) handleDatagramInternal(data []byte, addr *net.UDPAddr, queryAdm
 		if key == nil {
 			s.requestKey(dir, hb.DomainID, false)
 			s.ownershipMu.RUnlock()
-			// ACK confirms that this ICE endpoint is alive and should remain
-			// selected while the asynchronous identity lookup is in flight.
-			// The domain is not added to the peer registry until a later
-			// heartbeat has a signature verified against the fetched key.
-			s.sendSimple(addr, protocol.PacketICEServerHeartbeatACK)
+			// Match the original Overte ICE server: until the heartbeat
+			// signature can be verified, deny it. A later heartbeat will be
+			// acknowledged after the public key has been fetched.
+			s.sendSimple(addr, protocol.PacketICEServerHeartbeatDenied)
 			return
 		}
 		if e = protocol.VerifyHeartbeat(key, hb.Signed, hb.Signature); e != nil {
@@ -463,10 +462,10 @@ func (s *Server) handleDatagramInternal(data []byte, addr *net.UDPAddr, queryAdm
 			// Domain Server rotated its keypair. Refresh from this UUID's owner.
 			s.requestKey(dir, hb.DomainID, true)
 			s.ownershipMu.RUnlock()
-			// A stale key may simply mean the Domain Server rotated its keypair.
-			// Keep the ICE endpoint selected while the replacement key is fetched;
-			// this ACK does not admit or register the unverified peer.
-			s.sendSimple(addr, protocol.PacketICEServerHeartbeatACK)
+			// The original Overte ICE server denies invalid signatures while
+			// refreshing the cached key. Only a subsequently verified heartbeat
+			// may receive an ACK and establish the peer.
+			s.sendSimple(addr, protocol.PacketICEServerHeartbeatDenied)
 			return
 		}
 		peer := protocol.Peer{ID: hb.DomainID, Public: hb.Public, Local: hb.Local, Observed: addr.String(), LastSeen: time.Now()}
