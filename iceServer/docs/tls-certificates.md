@@ -1,6 +1,6 @@
 # TLS certificates for the ICE control API
 
-The ICE server exposes its enrollment and synchronization API over HTTPS on TCP port 7337. TLS is separate from the Overte ICE protocol on UDP port 7337.
+The ICE server exposes its enrollment and synchronization API over HTTPS on TCP port 7337. TLS is separate from the Overte ICE protocol on UDP port 7337. The Go service listens directly on TCP 443; no reverse proxy is required.
 
 ## Option A: installer-generated self-signed certificate
 
@@ -8,7 +8,7 @@ The installer accepts a public IPv4 or IPv6 address and selects the matching wil
 
 For this option:
 
-- Set the Directory Server's `ice_control_url` to `https://PUBLIC_IP:7337` for IPv4, or `https://[PUBLIC_IPV6]:7337` for IPv6.
+- Set the Directory Server's `ice_control_url` to `https://PUBLIC_IP` for IPv4, or `https://[PUBLIC_IPV6]` for IPv6 (HTTPS defaults to TCP 443).
 - Securely copy the generated certificate to the Directory Server host.
 - Set `ice_control_ca_file` to that certificate file.
 - Keep PHP cURL peer and hostname verification enabled.
@@ -39,5 +39,5 @@ The ICE server loads the configured certificate/key pair at process startup. Aft
 
 - Do not disable TLS peer verification or hostname verification in PHP.
 - Do not use a certificate for a hostname different from the hostname in `ice_control_url`.
-- TCP 7337 must reach the ICE service directly for this setup; a reverse proxy is not required.
+- TCP 443 must reach the ICE service directly for this setup; a reverse proxy is not required.
 - Certificate renewal and trust distribution must be tested before production use.
