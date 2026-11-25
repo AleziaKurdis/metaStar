@@ -12,6 +12,11 @@ func TestLoadRequiresValidAddressFamilyAndLongToken(t *testing.T) {
 	body := `{"listen_address":"0.0.0.0","port":7337,"advertise_ip":"203.0.113.4","tls_cert_file":"/tmp/cert","tls_key_file":"/tmp/key","enrollment_token":"012345678901234567890123456789012345678901234567"}`
 	if err := os.WriteFile(p, []byte(body), 0600); err != nil { t.Fatal(err) }
 	if _, err := Load(p); err != nil { t.Fatal(err) }
+	loaded, err := Load(p)
+	if err != nil { t.Fatal(err) }
+	if loaded.UDPPort != 7337 || loaded.ControlPort != 443 {
+		t.Fatalf("legacy port config migrated to UDP/TCP ports %d/%d, want 7337/443", loaded.UDPPort, loaded.ControlPort)
+	}
 	bad := `{"listen_address":"0.0.0.0","port":7337,"advertise_ip":"example.org","tls_cert_file":"/tmp/cert","tls_key_file":"/tmp/key","enrollment_token":"012345678901234567890123456789012345678901234567"}`
 	if err := os.WriteFile(p, []byte(bad), 0600); err != nil { t.Fatal(err) }
 	if _, err := Load(p); err == nil { t.Fatal("expected invalid IP address error") }
@@ -70,5 +75,16 @@ func TestSocketNetworks(t *testing.T) {
 	}
 	if _, _, err := SocketNetworks("ice.example.org"); err == nil {
 		t.Fatal("hostname should not be accepted as a bind address")
+	}
+}
+
+func TestLoadUsesExplicitSeparatePorts(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "config.json")
+	body := `{"listen_address":"0.0.0.0","udp_port":7337,"control_port":443,"advertise_ip":"203.0.113.4","tls_cert_file":"/tmp/cert","tls_key_file":"/tmp/key","enrollment_token":"012345678901234567890123456789012345678901234567"}`
+	if err := os.WriteFile(p, []byte(body), 0600); err != nil { t.Fatal(err) }
+	cfg, err := Load(p)
+	if err != nil { t.Fatal(err) }
+	if cfg.UDPPort != 7337 || cfg.ControlPort != 443 {
+		t.Fatalf("ports = UDP %d/TCP %d, want 7337/443", cfg.UDPPort, cfg.ControlPort)
 	}
 }

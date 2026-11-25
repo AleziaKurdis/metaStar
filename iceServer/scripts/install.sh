@@ -27,7 +27,8 @@ if [[ ! -f /etc/overte-ice/config.json ]]; then
   cat > /etc/overte-ice/config.json <<CONFIG
 {
   "listen_address": "$LISTEN_ADDRESS",
-  "port": 7337,
+  "udp_port": 7337,
+  "control_port": 443,
   "advertise_ip": "$PUBLIC_IP",
   "data_file": "/var/lib/overte-ice/registry.json",
   "tls_cert_file": "/var/lib/overte-ice/tls.crt",
@@ -54,5 +55,5 @@ echo
 echo "Overte ICE Server installed."
 echo "Check status: sudo systemctl status overte-ice"
 echo "View logs:    sudo journalctl -u overte-ice -f"
-echo "Firewall (if UFW is active): sudo ufw allow 7337/tcp && sudo ufw allow 7337/udp"
-echo "Router must forward BOTH TCP 7337 and UDP 7337 to this machine."
+echo "Firewall (if UFW is active): sudo ufw allow 443/tcp && sudo ufw allow 7337/udp"
+echo "Router must forward TCP 443 and UDP 7337 to this machine."

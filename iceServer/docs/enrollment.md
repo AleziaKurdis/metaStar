@@ -2,7 +2,7 @@
 
 ## First-time enrollment
 
-POST `https://ICE_HOST:7337/v1/enroll` with a trusted TLS certificate. `ICE_HOST` may be the public IPv4 address when using the installer's self-signed certificate, or a DNS hostname when using a CA-issued certificate.
+POST `https://ICE_HOST/v1/enroll` with a trusted TLS certificate. `ICE_HOST` may be the public IPv4 address when using the installer's self-signed certificate, or a DNS hostname when using a CA-issued certificate.
 
 Headers: `Authorization: Bearer <ICE_ENROLLMENT_SECRET>`, `Content-Type: application/json`.
 
@@ -14,13 +14,17 @@ The response contains `registration_token` (64 hexadecimal characters). The PHP 
 
 ## Sync
 
-POST `https://ICE_HOST:7337/v1/register` with `Authorization: Bearer <REGISTRATION_TOKEN>` and the same JSON fields, including the **complete current** list of domain UUIDs. An empty list removes previous domain ownership entries while retaining the directory registration.
+POST `https://ICE_HOST/v1/register` with `Authorization: Bearer <REGISTRATION_TOKEN>` and the same JSON fields, including the **complete current** list of domain UUIDs. An empty list removes previous domain ownership entries while retaining the directory registration.
 
 A second enrollment attempt with the same directory ID is rejected. Register calls cannot claim a UUID owned by another directory. Enrollment and sync are authenticated; this is not anonymous registration.
 
 Each successful enrollment or synchronization compares the previous and new UUID ownership mappings. Active peer records are immediately removed for UUIDs whose owner changed, including UUIDs removed from a Directory Service's complete list or assigned to a first-time owner. Heartbeat acceptance and query handling are synchronized with these changes, and an in-flight public-key response is discarded if its Directory Service owner or base URL is no longer current.
 
 Registry persistence is atomic from the service's point of view: a failed file save restores the previous in-memory directory and ownership state. First-time enrollment writes the directory record and its credential hash together, so a failed write cannot leave an enrolled directory without a usable registration token.
+
+## Network ports
+
+Forward **TCP 443** and **UDP 7337** from the router to the ICE host. TCP 443 carries the HTTPS enrollment/control API; UDP 7337 carries Overte ICE traffic. The Go service listens directly on both ports, so no reverse proxy is required.
 
 ## TLS trust
 
