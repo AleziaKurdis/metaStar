@@ -7,9 +7,9 @@ Standalone Go ICE service for Ubuntu 24.04 x86_64. Designed for one ICE server t
 ## Ports
 
 - UDP 7337 — Overte ICE protocol
-- TCP 7337 — HTTPS enrollment and directory synchronization
+- TCP 443 — HTTPS enrollment and directory synchronization
 
-No Apache/Nginx is required. Firewall/router rules must cover both protocols. The installer accepts a public IPv4 or IPv6 address and selects the matching wildcard listener. For a manually edited configuration, `listen_address` and `advertise_ip` must use the same family (for example, `::` and a public IPv6 address). Each service instance binds one address family; IPv4 remains the default when an existing configuration is preserved. The Directory Service HTTPS control hostname may be a DNS name with a matching certificate.
+No Apache/Nginx or reverse proxy is required. The Go service binds both listeners directly. The systemd unit grants only `CAP_NET_BIND_SERVICE` so the unprivileged service account can bind TCP 443. Firewall/router rules must cover UDP 7337 and TCP 443. The installer accepts a public IPv4 or IPv6 address and selects the matching wildcard listener. New configurations use `udp_port: 7337` and `control_port: 443`. Existing configurations that contain only the legacy `port` setting keep that value for UDP; the HTTPS control listener defaults to TCP 443. For a manually edited configuration, `listen_address` and `advertise_ip` must use the same family (for example, `::` and a public IPv6 address). Each service instance binds one address family; IPv4 remains the default when an existing configuration is preserved. The Directory Service HTTPS control hostname may be a DNS name with a matching certificate.
 
 ## Protocol implementation status
 
@@ -53,7 +53,7 @@ sudo systemctl status overte-ice
 sudo journalctl -u overte-ice -f
 ```
 
-The default installation generates a self-signed certificate for the configured `advertise_ip` (IPv4 or IPv6). For a CA-issued certificate on a DNS hostname, follow [TLS certificate setup](docs/tls-certificates.md).
+The default installation generates a self-signed certificate for the configured `advertise_ip` (IPv4 or IPv6), used by the HTTPS control API on TCP 443. For a CA-issued certificate on a DNS hostname, follow [TLS certificate setup](docs/tls-certificates.md).
 
 ## Registration
 
