@@ -10,7 +10,9 @@ import (
 
 type Config struct {
 	ListenAddress   string `json:"listen_address"`
-	Port            int    `json:"port"`
+	UDPPort         int    `json:"udp_port"`
+	ControlPort     int    `json:"control_port"`
+	Port            int    `json:"port,omitempty"` // Deprecated: legacy fallback for udp_port.
 	AdvertiseIP     string `json:"advertise_ip"`
 	DataFile        string `json:"data_file"`
 	TLSCertFile     string `json:"tls_cert_file"`
@@ -35,8 +37,17 @@ func Load(path string) (Config, error) {
 	if _, _, err := SocketNetworks(c.ListenAddress); err != nil {
 		return Config{}, err
 	}
-	if c.Port == 0 {
-		c.Port = 7337
+	// Preserve the legacy "port" setting as the UDP port for existing installs.
+	// The HTTPS control API now defaults to standard TCP 443.
+	if c.UDPPort == 0 {
+		if c.Port > 0 {
+			c.UDPPort = c.Port
+		} else {
+			c.UDPPort = 7337
+		}
+	}
+	if c.ControlPort == 0 {
+		c.ControlPort = 443
 	}
 	if c.DataFile == "" {
 		c.DataFile = "/var/lib/overte-ice/registry.json"
@@ -64,8 +75,11 @@ func Load(path string) (Config, error) {
 	if c.WriteTimeout == 0 {
 		c.WriteTimeout = 10
 	}
-	if c.Port < 1 || c.Port > 65535 {
-		return Config{}, fmt.Errorf("invalid port %d", c.Port)
+	if c.UDPPort < 1 || c.UDPPort > 65535 {
+		return Config{}, fmt.Errorf("invalid UDP port %d", c.UDPPort)
+	}
+	if c.ControlPort < 1 || c.ControlPort > 65535 {
+		return Config{}, fmt.Errorf("invalid control TCP port %d", c.ControlPort)
 	}
 	if len(c.EnrollmentToken) < 48 {
 		return Config{}, errors.New("enrollment_token must contain at least 48 characters")
