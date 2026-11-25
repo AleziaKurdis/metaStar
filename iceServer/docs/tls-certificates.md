@@ -23,11 +23,11 @@ A publicly trusted certificate can be used without changing the IP address adver
 2. Obtain a certificate whose SAN includes that exact hostname, using your preferred ACME client or certificate authority.
 3. Install the certificate chain and private key at paths readable by the `overte-ice` service account. For example, copy them into `/etc/overte-ice/`, keeping the private key restricted to the service group.
 4. Set `tls_cert_file` and `tls_key_file` in `/etc/overte-ice/config.json` to those files. Keep `advertise_ip` set to the public IPv4 or IPv6 address configured for the service.
-5. Restart the service and verify that the HTTPS certificate presented on TCP 7337 is valid for the hostname.
+5. Restart the service and verify that the HTTPS certificate presented on TCP 443 is valid for the hostname.
 6. In the PHP Directory Server's `config/local.php`, set:
 
 ```php
-'ice_control_url' => 'https://ice.example.org:7337',
+'ice_control_url' => 'https://ice.example.org',
 'ice_control_ca_file' => '/etc/ssl/certs/ca-certificates.crt',
 ```
 
