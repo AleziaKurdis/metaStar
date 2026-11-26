@@ -14,7 +14,7 @@ The ICE UDP socket reader and packet processor are decoupled by a bounded in-mem
 
 ## Compatibility choices
 
-A single consumer is intentional. Multiple packet workers could complete signature verification out of order and allow an older heartbeat to overwrite a newer observed public endpoint. The queue changes neither the Overte wire protocol nor the normal heartbeat cadence. Registered-domain heartbeat verification and ACK behavior remain in the existing packet handler.
+A single consumer is intentional. Multiple packet workers could complete signature verification out of order and allow an older heartbeat to overwrite a newer observed public endpoint. The queue changes neither the Overte wire protocol nor the normal heartbeat cadence. Registered-domain heartbeat verification and its ACK/denial behavior remain in the existing packet handler.
 
 ## Overload behavior and limits
 
