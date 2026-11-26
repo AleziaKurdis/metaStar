@@ -147,6 +147,7 @@ func (s *Server) Run(ctx context.Context) error {
 	tlsListener := tls.NewListener(tcpListener, tlsCfg)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.handleHealth)
+	mux.HandleFunc("GET /v1/peers", s.handlePeers)
 	mux.HandleFunc("POST /v1/enroll", s.handleEnroll)
 	mux.HandleFunc("POST /v1/recover", s.handleRecover)
 	mux.HandleFunc("POST /v1/unregister", s.handleUnregister)
@@ -172,6 +173,54 @@ func (s *Server) Run(ctx context.Context) error {
 		return e
 	}
 }
+// handlePeers exposes only the authenticated Directory Service's currently
+// admitted domains. Peer state is in memory and expires after five seconds
+// without a valid heartbeat; this endpoint is diagnostic, not a durable registry.
+func (s *Server) handlePeers(w http.ResponseWriter, r *http.Request) {
+	token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+	directoryID := strings.TrimSpace(r.URL.Query().Get("directory_id"))
+	if directoryID == "" || !s.registry.TokenValid(directoryID, token) {
+		writeJSON(w, http.StatusUnauthorized, apiResponse{Status: "error", Message: "invalid directory credentials"})
+		return
+	}
+
+	s.ownershipMu.RLock()
+	snapshot := s.registry.Snapshot()
+	directory, exists := snapshot.Directories[directoryID]
+	if !exists {
+		s.ownershipMu.RUnlock()
+		writeJSON(w, http.StatusUnauthorized, apiResponse{Status: "error", Message: "invalid directory credentials"})
+		return
+	}
+
+	now := time.Now()
+	type activePeer struct {
+		DomainID       string    `json:"domain_id"`
+		LastSeen       time.Time `json:"last_seen"`
+		SecondsSince   int       `json:"seconds_since_heartbeat"`
+	}
+	active := make([]activePeer, 0, len(directory.Domains))
+	s.peersMu.RLock()
+	for _, domainID := range directory.Domains {
+		if peer, ok := s.peers[domainID]; ok && now.Sub(peer.LastSeen) <= 5*time.Second {
+			active = append(active, activePeer{
+				DomainID: domainID,
+				LastSeen: peer.LastSeen.UTC(),
+				SecondsSince: max(0, int(now.Sub(peer.LastSeen).Seconds())),
+			})
+		}
+	}
+	s.peersMu.RUnlock()
+	s.ownershipMu.RUnlock()
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status": "success",
+		"directory_id": directoryID,
+		"active_count": len(active),
+		"active_peers": active,
+	})
+}
+
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "service": "overte-ice-server"})
