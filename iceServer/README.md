@@ -31,6 +31,18 @@ When a Directory Service synchronizes its complete domain list, peers whose UUID
 
 Registry changes roll back in-memory ownership data when the atomic registry-file save fails. First-time enrollment stores the Directory Service record and its credential hash in one file write, avoiding a partially enrolled entry.
 
+## Active peer diagnostics
+
+A Directory Service can inspect only its own currently admitted peers with the HTTPS control API:
+
+```sh
+curl --fail --silent --show-error \
+  -H "Authorization: Bearer YOUR_DIRECTORY_REGISTRATION_TOKEN" \
+  "https://ICE_SERVER_HOST/v1/peers?directory_id=YOUR_DIRECTORY_ID"
+```
+
+The response lists domain UUIDs whose heartbeat signatures have been verified and whose last valid heartbeat was received within the previous five seconds. It includes each peer's last-seen timestamp and heartbeat age, but does not expose public keys or observed network addresses. The endpoint requires the Directory Service's registration token and never returns another directory's peers. A successful response with an empty `active_peers` array means that directory currently has no admitted active peers; it does not mean the domains are absent from the persistent ownership registry.
+
 ## Preparing a real Overte capture
 
 The packet inspection utility reads UDP payloads exported from Wireshark/tshark and reports the UDT sequence, ICE packet type/version, and payload length. It is a framing aid only; it does not verify signatures or prove that a peer exchange or NAT traversal succeeded.
