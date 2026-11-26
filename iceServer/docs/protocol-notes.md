@@ -70,9 +70,11 @@ The Domain Server writes a Qt `QDataStream` payload containing:
 3. Local `SockAddr` (QHostAddress + port)
 4. Signature as a `QByteArray`
 
-The signature covers the serialized bytes of items 1–3, before the signature byte-array field. The original ICE Server verifies RSA/SHA-256. When the key is missing, it requests the public key from the owning Directory Service and denies that heartbeat; a subsequent heartbeat can succeed after the key has been loaded. If a cached key fails signature verification, the original ICE Server requests the key again.
+The signature covers the serialized bytes of items 1–3, before the signature byte-array field. The original ICE Server verifies RSA/SHA-256. When the key is missing, it requests the public key from the owning Directory Service and denies that heartbeat; a subsequent heartbeat can succeed after the key has been loaded. If a cached key fails signature verification, the original ICE Server requests the key again and denies the heartbeat while the replacement key is fetched.
 
-MetaStar intentionally differs in its response during this asynchronous lookup: it sends `ICEServerHeartbeatACK` when a key is missing or a cached key fails verification and a refresh is requested. This is a liveness ACK only. The heartbeat is **not** admitted to the peer registry until a later heartbeat verifies successfully with the fetched public key. This avoids triggering the unmodified Domain Server's heartbeat-denial/keypair-regeneration path while the key lookup is in flight. The behavior is covered by server tests, but still requires confirmation against unmodified live Overte binaries.
+MetaStar now follows the same response semantics: a heartbeat with no cached key, or one that fails verification against the cached key, receives `ICEServerHeartbeatDenied` while the asynchronous key lookup or refresh runs. The domain is not admitted or updated in the peer registry until a later heartbeat verifies successfully with the fetched key. This behavior is covered by server tests. It remains subject to live confirmation against unmodified Overte binaries.
+
+The upstream Domain Server counts heartbeat denials and regenerates its domain keypair after more than three denials. MetaStar retains the upstream denial behavior rather than introducing a protocol-specific exception. In practice, initial key publication and ICE key retrieval should therefore complete promptly; a delayed lookup can cause the Domain Server to rotate its keypair during bootstrap or refresh. The live interoperability check should watch for this and confirm that the refreshed public key eventually converges.
 
 MetaStar deduplicates concurrent key refresh requests and applies retry backoff after failed Directory Service lookups.
 
@@ -91,9 +93,10 @@ The Go reader follows that layout:
 
 | Address kind | Serialized fields |
 |---|---|
-| IPv4 | protocol byte `1`, IPv4 `quint32`, port `quint16` |
-| IPv6 | protocol byte `2`, 16 address bytes, scope `QString`, port `quint16` |
-| Unknown / Any | protocol byte `0` / `3`, port `quint16` |
+| IPv4 | protocol byte `0`, IPv4 `quint32`, port `quint16` |
+| IPv6 | protocol byte `1`, 16 address bytes, scope `QString`, port `quint16` |
+| Any | protocol byte `2`, port `quint16` |
+| Unknown | protocol byte `255` (signed `qint8` value `-1`), port `quint16` |
 
 The Go reader retains the original serialized SockAddr bytes when building peer-information packets, rather than re-encoding them from a display string. IPv6 scope strings are decoded as UTF-16, including surrogate pairs.
 
