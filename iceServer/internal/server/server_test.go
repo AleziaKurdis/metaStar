@@ -133,6 +133,71 @@ func TestHeartbeatKeyFetchAckAndPeerQuery(t *testing.T) {
 	}
 }
 
+func TestHandlePeersRequiresDirectoryTokenAndScopesResults(t *testing.T) {
+	cfg := config.Config{
+		ListenAddress: "127.0.0.1",
+		Port: 17341,
+		DataFile: filepath.Join(t.TempDir(), "registry.json"),
+		EnrollmentToken: "012345678901234567890123456789012345678901234567",
+	}
+	srv, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	domainA := "4784f9dc-388c-47c3-8855-373d22f31ff4"
+	domainB := "11111111-2222-4333-8444-555555555555"
+	tokenA, err := srv.registry.Enroll("directory-a", "https://a.example", []string{domainA})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = srv.registry.Enroll("directory-b", "https://b.example", []string{domainB})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lastSeen := time.Now().Add(-2 * time.Second)
+	srv.peers[domainA] = protocol.Peer{ID: domainA, LastSeen: lastSeen}
+	srv.peers[domainB] = protocol.Peer{ID: domainB, LastSeen: time.Now()}
+
+	unauthorized := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/v1/peers?directory_id=directory-a", nil)
+	request.Header.Set("Authorization", "Bearer wrong-token")
+	srv.handlePeers(unauthorized, request)
+	if unauthorized.Code != http.StatusUnauthorized {
+		t.Fatalf("wrong token status = %d, want %d", unauthorized.Code, http.StatusUnauthorized)
+	}
+
+	response := httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodGet, "/v1/peers?directory_id=directory-a", nil)
+	request.Header.Set("Authorization", "Bearer "+tokenA)
+	srv.handlePeers(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("valid token status = %d, body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Status      string `json:"status"`
+		DirectoryID string `json:"directory_id"`
+		ActiveCount int    `json:"active_count"`
+		ActivePeers []struct {
+			DomainID     string    `json:"domain_id"`
+			LastSeen     time.Time `json:"last_seen"`
+			SecondsSince int       `json:"seconds_since_heartbeat"`
+		} `json:"active_peers"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Status != "success" || body.DirectoryID != "directory-a" || body.ActiveCount != 1 || len(body.ActivePeers) != 1 {
+		t.Fatalf("unexpected peer response: %+v", body)
+	}
+	if body.ActivePeers[0].DomainID != domainA {
+		t.Fatalf("response exposed a peer outside directory-a: %+v", body.ActivePeers[0])
+	}
+	if body.ActivePeers[0].SecondsSince < 1 || body.ActivePeers[0].SecondsSince > 3 {
+		t.Fatalf("unexpected heartbeat age: %d seconds", body.ActivePeers[0].SecondsSince)
+	}
+}
+
 func cryptoHashSHA256() crypto.Hash { return crypto.SHA256 }
 func readTestPacket(t *testing.T, conn *net.UDPConn) protocol.Packet {
 	t.Helper()
