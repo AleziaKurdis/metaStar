@@ -74,6 +74,8 @@ The signature covers the serialized bytes of items 1–3, before the signature b
 
 MetaStar now follows the same response semantics: a heartbeat with no cached key, or one that fails verification against the cached key, receives `ICEServerHeartbeatDenied` while the asynchronous key lookup or refresh runs. The domain is not admitted or updated in the peer registry until a later heartbeat verifies successfully with the fetched key. This behavior is covered by server tests. It remains subject to live confirmation against unmodified Overte binaries.
 
+The upstream Domain Server counts heartbeat denials and regenerates its domain keypair after more than three denials. MetaStar retains the upstream denial behavior rather than introducing a protocol-specific exception. In practice, initial key publication and ICE key retrieval should therefore complete promptly; a delayed lookup can cause the Domain Server to rotate its keypair during bootstrap or refresh. The live interoperability check should watch for this and confirm that the refreshed public key eventually converges.
+
 MetaStar deduplicates concurrent key refresh requests and applies retry backoff after failed Directory Service lookups.
 
 ## Qt SockAddr wire serialization
