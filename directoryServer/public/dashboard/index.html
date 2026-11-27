@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
-    <title>Overte Server Dashboard</title>
+    <title>MetaStar Directory Server Dashboard</title>
     <link rel="stylesheet" href="dashboard.css">
+    <link rel="stylesheet" href="../brand.css">
 </head>
 <body>
     <div class="login-shell" id="loginView">
         <form class="login-card" id="loginForm">
-            <div class="eyebrow">OVERTE DIRECTORY SERVER</div>
+            <a class="brand" href="../" aria-label="MetaStar Directory Server"><img class="brand-logo" src="../logo.php" alt="MetaStar"><span class="brand-subtitle">DIRECTORY SERVER</span></a>
             <h1>Administration</h1>
             <p class="muted">Sign in with an administrator account.</p>
             <label for="username">Username or email</label>
@@ -24,7 +25,7 @@
 
     <div class="app-shell hidden" id="appView">
         <aside class="sidebar">
-            <div class="brand"><span class="brand-mark">O</span><div><strong>OVERTE</strong><small>SERVER ADMIN</small></div></div>
+            <a class="brand" href="../" aria-label="MetaStar Directory Server"><img class="brand-logo" src="../logo.php" alt="MetaStar"><span class="brand-subtitle">DIRECTORY SERVER</span></a>
             <nav aria-label="Dashboard sections">
                 <button class="nav-item active" data-section="overview">Overview</button>
                 <button class="nav-item" data-section="accounts">Accounts</button>
@@ -32,7 +33,7 @@
                 <button class="nav-item" data-section="places">Places</button>
                 <button class="nav-item" data-section="ice">ICE Server</button>
             </nav>
-            <div class="sidebar-bottom"><span id="signedInAs"></span><button class="quiet-button" id="logoutButton">Sign out</button></div>
+            <div class="sidebar-bottom"><span id="signedInAs"></span><a class="test-runner-link" href="../ice-discovery-test.php">Run ICE discovery tests</a><button class="quiet-button" id="logoutButton">Sign out</button></div>
         </aside>
 
         <main class="main-content">
@@ -89,7 +90,7 @@
                 </article>
             </section>
 
-            <footer>Overte Directory Server · Administration</footer>
+            <footer>MetaStar Directory Server · Administration</footer>
         </main>
     </div>
     <dialog id="recordDialog" class="record-dialog">

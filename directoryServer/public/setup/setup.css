@@ -15,3 +15,5 @@ button:disabled { opacity: .55; cursor: wait; }
 .message.success { background: #20362c; color: #d2f4df; }
 .footnote { margin: 22px 0 0; color: #8f9aa8; font-size: 12px; line-height: 1.5; }
 code { color: #d6e1ed; }
+
+.setup-card .brand { margin-bottom: 24px; }

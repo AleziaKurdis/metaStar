@@ -1,44 +1,80 @@
 <?php
 declare(strict_types=1);
 
-require dirname(__DIR__) . '/app/bootstrap.php';
-
 use OvertePHP\DomainService;
 
-// An explicitly configured public ICE address takes precedence.
-$configured = [
-    'default_ice_server_url' => 'https://ice.example.org:443',
-    'metaverse_server_url' => 'https://directory.example.org'
-];
-assert(DomainService::effectiveIceServerUrl($configured) === 'https://ice.example.org:443');
-assert(DomainService::isValidHttpUrl(DomainService::effectiveIceServerUrl($configured)));
+require_once dirname(__DIR__) . '/app/bootstrap.php';
 
-// Preserve the existing metaverse-info fallback when no dedicated ICE address is configured.
-$fallback = [
-    'default_ice_server_url' => '',
-    'metaverse_server_url' => 'https://directory.example.org/'
-];
-assert(DomainService::effectiveIceServerUrl($fallback) === 'https://directory.example.org/');
-assert(DomainService::isValidHttpUrl(DomainService::effectiveIceServerUrl($fallback)));
+/**
+ * Run isolated checks for public ICE URL discovery.
+ *
+ * The explicit check helper is used instead of PHP assert(), which may be
+ * disabled by the hosting configuration.
+ */
+function runIceServerDiscoveryChecks(): array
+{
+    $results = [];
+    $check = static function (string $name, bool $passed) use (&$results): void {
+        $results[] = ['name' => $name, 'passed' => $passed];
+    };
 
-// Preserve the legacy request-host fallback when neither URL is configured.
-$previousHttps = $_SERVER['HTTPS'] ?? null;
-$previousHost = $_SERVER['HTTP_HOST'] ?? null;
-$_SERVER['HTTPS'] = 'on';
-$_SERVER['HTTP_HOST'] = 'directory.example.test';
-$requestFallback = [
-    'default_ice_server_url' => '',
-    'metaverse_server_url' => ''
-];
-assert(DomainService::effectiveIceServerUrl($requestFallback) === 'https://directory.example.test');
-assert(DomainService::isValidHttpUrl(DomainService::effectiveIceServerUrl($requestFallback)));
-if ($previousHttps === null) unset($_SERVER['HTTPS']); else $_SERVER['HTTPS'] = $previousHttps;
-if ($previousHost === null) unset($_SERVER['HTTP_HOST']); else $_SERVER['HTTP_HOST'] = $previousHost;
+    $configured = [
+        'default_ice_server_url' => 'https://ice.example.org:443',
+        'metaverse_server_url' => 'https://directory.example.org'
+    ];
+    $effective = DomainService::effectiveIceServerUrl($configured);
+    $check('Configured ICE URL takes precedence', $effective === 'https://ice.example.org:443');
+    $check('Configured ICE URL is valid HTTP(S)', DomainService::isValidHttpUrl($effective));
 
-// Discovery must not publish malformed or non-HTTP(S) configuration values.
-assert(!DomainService::isValidHttpUrl(''));
-assert(!DomainService::isValidHttpUrl('ice.example.org'));
-assert(!DomainService::isValidHttpUrl('ftp://ice.example.org'));
-assert(!DomainService::isValidHttpUrl('https://user:secret@ice.example.org'));
+    $fallback = [
+        'default_ice_server_url' => '',
+        'metaverse_server_url' => 'https://directory.example.org/'
+    ];
+    $effective = DomainService::effectiveIceServerUrl($fallback);
+    $check('Metaverse URL is used when no ICE URL is configured', $effective === 'https://directory.example.org/');
+    $check('Metaverse URL fallback is valid HTTP(S)', DomainService::isValidHttpUrl($effective));
 
-echo "ICE server discovery tests passed.\n";
+    $previousHttps = $_SERVER['HTTPS'] ?? null;
+    $previousHost = $_SERVER['HTTP_HOST'] ?? null;
+    try {
+        $_SERVER['HTTPS'] = 'on';
+        $_SERVER['HTTP_HOST'] = 'directory.example.test';
+        $requestFallback = [
+            'default_ice_server_url' => '',
+            'metaverse_server_url' => ''
+        ];
+        $effective = DomainService::effectiveIceServerUrl($requestFallback);
+        $check('Request host is used as the legacy fallback', $effective === 'https://directory.example.test');
+        $check('Request-host fallback is valid HTTP(S)', DomainService::isValidHttpUrl($effective));
+    } finally {
+        if ($previousHttps === null) {
+            unset($_SERVER['HTTPS']);
+        } else {
+            $_SERVER['HTTPS'] = $previousHttps;
+        }
+        if ($previousHost === null) {
+            unset($_SERVER['HTTP_HOST']);
+        } else {
+            $_SERVER['HTTP_HOST'] = $previousHost;
+        }
+    }
+
+    $check('Empty URL is rejected', !DomainService::isValidHttpUrl(''));
+    $check('URL without a scheme is rejected', !DomainService::isValidHttpUrl('ice.example.org'));
+    $check('Non-HTTP(S) URL is rejected', !DomainService::isValidHttpUrl('ftp://ice.example.org'));
+    $check('URL containing embedded credentials is rejected', !DomainService::isValidHttpUrl('https://user:secret@ice.example.org'));
+
+    return $results;
+}
+
+// Preserve direct command-line execution while allowing the protected browser
+// runner to include this file and display the same checks.
+if (PHP_SAPI === 'cli' && realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
+    $results = runIceServerDiscoveryChecks();
+    foreach ($results as $result) {
+        echo ($result['passed'] ? 'PASS' : 'FAIL') . ' — ' . $result['name'] . PHP_EOL;
+    }
+    $failed = count(array_filter($results, static fn(array $result): bool => !$result['passed']));
+    echo count($results) - $failed . ' passed, ' . $failed . ' failed.' . PHP_EOL;
+    exit($failed === 0 ? 0 : 1);
+}

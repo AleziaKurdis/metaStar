@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 160" role="img" aria-labelledby="title">
+  <title id="title">MetaStar logo placeholder</title>
+  <rect width="320" height="160" rx="18" fill="#1a2226"/>
+  <g fill="#78d7c2">
+    <path d="M160 18 176 58 219 42 203 85 244 101 203 117 219 160 176 144 160 184 144 144 101 160 117 117 76 101 117 85 101 42 144 58Z" transform="translate(0 -18)"/>
+  </g>
+  <circle cx="160" cy="80" r="25" fill="#1a2226"/>
+  <circle cx="160" cy="80" r="9" fill="#78d7c2"/>
+</svg>

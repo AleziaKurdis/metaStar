@@ -1,4 +1,4 @@
-# Overte Directory Server — PHP rewrite (Milestone 25 public ICE discovery)
+# MetaStar Directory Server — PHP implementation (Milestone 25 public ICE discovery)
 
 **Milestone 25: Public ICE server discovery.** Adds the unauthenticated `GET /api/v1/ice-server` endpoint so an Overte Domain Server can discover the public ICE address from its configured Directory Server. The endpoint reuses `default_ice_server_url` and the existing metaverse-info fallback; it does not expose the separate ICE control URL or enrollment credentials.
 
@@ -433,3 +433,12 @@ Run the ICE integration tests with assertions enabled:
 php -d zend.assertions=1 -d assert.exception=1 tests/ice-registration.php
 php -d zend.assertions=1 -d assert.exception=1 tests/ice-server-discovery.php
 ```
+
+
+## Customizing the Directory Server logo
+
+Replace `directoryServer/logo.svg` with your own SVG logo. The application serves this file through `public/logo.php`, so the same customization works whether the project root or the `public/` folder is configured as the web document root. The displayed logo area uses a 2:1 aspect ratio; the subtitle below it is shared across the login, registration, account, setup, and administration pages.
+
+## Browser-based ICE discovery checks
+
+After signing in to the administration dashboard, use **Run ICE discovery tests** in the sidebar. The test runner reuses the same checks as `tests/ice-server-discovery.php` and requires a valid administrator bearer token. It does not contact the ICE server or change stored data. The runner is a temporary diagnostic convenience and can be removed after the discovery endpoint has been verified.

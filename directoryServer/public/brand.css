@@ -1,0 +1,29 @@
+/* Shared, replaceable Directory Server branding. */
+.brand {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+    width: 180px;
+    max-width: 100%;
+    color: inherit;
+    text-decoration: none;
+}
+.brand:hover { text-decoration: none; }
+.brand-logo {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 2 / 1;
+    object-fit: contain;
+}
+.brand-subtitle {
+    display: block;
+    width: 100%;
+    color: #9ba9af;
+    font-size: 10px;
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: .14em;
+    white-space: nowrap;
+}
