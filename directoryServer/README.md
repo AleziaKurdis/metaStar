@@ -1,4 +1,7 @@
-# Overte Directory Server — PHP rewrite (Milestone 24.4 public-key conversion fix)
+# Overte Directory Server — PHP rewrite (Milestone 25 public ICE discovery)
+
+**Milestone 25: Public ICE server discovery.** Adds the unauthenticated `GET /api/v1/ice-server` endpoint so an Overte Domain Server can discover the public ICE address from its configured Directory Server. The endpoint reuses `default_ice_server_url` and the existing metaverse-info fallback; it does not expose the separate ICE control URL or enrollment credentials.
+
 
 **Milestone 24.4: Public-key conversion fix.** Overte uploads its RSA public key as PKCS#1 DER. The server now wraps that DER in the ASN.1 SubjectPublicKeyInfo structure and passes it to OpenSSL using the standard `PUBLIC KEY` PEM format. SPKI DER uploads remain supported as a fallback. Failed or missing public-key uploads now return HTTP 400 instead of HTTP 200 with a failure body, so the Domain Server cannot mistake an application-level rejection for a successful upload. The safe Milestone 24.3 diagnostics remain available.
 
@@ -424,8 +427,9 @@ See [docs/ice-registration.md](../docs/ice-registration.md) for configuration, f
 - `default_ice_server_url` remains the separate client-advertised ICE address.
 - `GET /api/v1/ice-server` publicly returns the effective client-advertised ICE URL for Domain Server discovery; it does not expose the separate `ice_control_url` or any enrollment credentials.
 
-Run the new test with assertions enabled:
+Run the ICE integration tests with assertions enabled:
 
 ```sh
 php -d zend.assertions=1 -d assert.exception=1 tests/ice-registration.php
+php -d zend.assertions=1 -d assert.exception=1 tests/ice-server-discovery.php
 ```
