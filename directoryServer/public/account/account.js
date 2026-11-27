@@ -110,7 +110,7 @@
             details.className = 'domain-details';
             const rows = [
                 ['Version', domain.version || '—'],
-                ['Domain ID', domain.domainId || domain.id || '—'],
+                ['Users', String(domain.num_users ?? 0)],
                 ['Network address', [domain.network_address || '', domain.network_port || ''].filter(Boolean).join(':') || 'Not configured'],
                 ['Last heartbeat', formatDate(domain.time_of_last_heartbeat)]
             ];
