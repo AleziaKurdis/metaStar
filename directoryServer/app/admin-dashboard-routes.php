@@ -83,6 +83,20 @@ $router->add('GET', '/api/v1/admin/places', static function (array $params, Json
 });
 
 
+$router->add('GET', '/api/v1/admin/domains', static function (array $params, JsonStore $store, Auth $auth, array $config) use ($requireDashboardAdmin): never {
+    $requireDashboardAdmin($auth);
+    $domains = $store->all('domains');
+    usort($domains, static fn(array $a, array $b): int => strcasecmp((string)($a['name'] ?? ''), (string)($b['name'] ?? '')));
+    $page = max(0, (int)($_GET['page'] ?? 0));
+    $perPage = max(1, min(100, (int)($_GET['per_page'] ?? 100)));
+    $total = count($domains);
+    $domains = array_slice($domains, $page * $perPage, $perPage);
+    Http::success([
+        'domains' => array_map(static fn(array $domain): array => DomainService::info($domain, $store, $config), $domains),
+        'pagination' => ['page' => $page, 'per_page' => $perPage, 'total' => $total]
+    ]);
+});
+
 $router->add('GET', '/api/v1/admin/ice/status', static function (array $params, JsonStore $store, Auth $auth, array $config) use ($requireDashboardAdmin): never {
     $requireDashboardAdmin($auth);
     try {

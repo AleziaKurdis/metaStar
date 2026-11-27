@@ -62,7 +62,7 @@
 
             <section class="section-view hidden" id="accountsSection"><div class="section-toolbar"><p class="muted">Registered user accounts and current presence.</p><input class="search-input" id="accountSearch" type="search" placeholder="Search accounts…" aria-label="Search accounts"></div><div class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>Username</th><th>Email</th><th>Status</th><th>Role</th><th>Created</th><th>Actions</th></tr></thead><tbody id="accountsBody"><tr><td colspan="6" class="empty">Select Accounts to load records.</td></tr></tbody></table></div><div class="table-footer" id="accountsFooter"></div></div></section>
 
-            <section class="section-view hidden" id="domainsSection"><div class="section-toolbar"><p class="muted">Registered domains and reported activity.</p><div class="toolbar-actions"><button class="primary-button" id="createDomainButton" type="button">Create domain</button><input class="search-input" id="domainSearch" type="search" placeholder="Search domains…" aria-label="Search domains"></div></div><div class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>Domain</th><th>Network address</th><th>Users</th><th>Visibility</th><th>Created</th><th>Actions</th></tr></thead><tbody id="domainsBody"><tr><td colspan="6" class="empty">Select Domains to load records.</td></tr></tbody></table></div><div class="table-footer" id="domainsFooter"></div></div></section>
+            <section class="section-view hidden" id="domainsSection"><div class="section-toolbar"><p class="muted">Registered domains and reported activity.</p><div class="toolbar-actions"><button class="primary-button" id="createDomainButton" type="button">Create domain</button><input class="search-input" id="domainSearch" type="search" placeholder="Search domains…" aria-label="Search domains"></div></div><div class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>Domain</th><th>Network address</th><th>Version</th><th>Users</th><th>Visibility</th><th>Created</th><th>Actions</th></tr></thead><tbody id="domainsBody"><tr><td colspan="7" class="empty">Select Domains to load records.</td></tr></tbody></table></div><div class="table-footer" id="domainsFooter"></div></div></section>
 
             <section class="section-view hidden" id="placesSection"><div class="section-toolbar"><p class="muted">All registered places, including non-public places.</p><div class="toolbar-actions"><button class="primary-button" id="createPlaceButton" type="button">Create place</button><input class="search-input" id="placeSearch" type="search" placeholder="Search places…" aria-label="Search places"></div></div><div class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>Place</th><th>Domain</th><th>Attendance</th><th>Visibility</th><th>Created</th><th>Actions</th></tr></thead><tbody id="placesBody"><tr><td colspan="6" class="empty">Select Places to load records.</td></tr></tbody></table></div><div class="table-footer" id="placesFooter"></div></div></section>
 
@@ -100,6 +100,11 @@
             <p id="recordError" class="dialog-error" role="alert"></p>
             <div class="dialog-actions"><button type="button" class="secondary-button" id="recordCancelBottom">Close</button><button type="submit" class="secondary-button" id="recordSave">Save changes</button></div>
         </form>
+    </dialog>
+    <dialog id="domainDetailsDialog" class="record-dialog domain-details-dialog">
+        <div class="dialog-heading"><h2 id="domainDetailsTitle">Domain details</h2><button type="button" class="dialog-close" id="domainDetailsClose" aria-label="Close">×</button></div>
+        <dl id="domainDetailsFields" class="domain-details-panel"></dl>
+        <div class="dialog-actions"><button type="button" class="secondary-button" id="domainDetailsCloseBottom">Close</button></div>
     </dialog>
     <script src="dashboard.js" defer></script>
 </body>

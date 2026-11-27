@@ -187,7 +187,7 @@
     }
 
     async function loadDomains() {
-        const data = await request(API + '/domains?page=0&per_page=100');
+        const data = await request(API + '/admin/domains?page=0&per_page=100');
         cache.domains = data.domains || [];
         renderDomains();
         byId('domainsFooter').textContent = numberText(data.pagination?.total ?? cache.domains.length) + ' domains';
@@ -251,11 +251,18 @@
         body.replaceChildren();
         const query = byId('domainSearch').value.trim().toLowerCase();
         const rows = cache.domains.filter(item => [item.name, item.network_address].some(value => String(value || '').toLowerCase().includes(query)));
-        if (!rows.length) { const tr = body.insertRow(); const td = tr.insertCell(); td.colSpan = 6; td.className = 'empty'; td.textContent = 'No matching domains.'; return; }
+        if (!rows.length) { const tr = body.insertRow(); const td = tr.insertCell(); td.colSpan = 7; td.className = 'empty'; td.textContent = 'No matching domains.'; return; }
         rows.forEach(item => {
             const tr = body.insertRow();
-            cell(tr, item.name);
+            const nameCell = tr.insertCell();
+            const nameButton = document.createElement('button');
+            nameButton.type = 'button';
+            nameButton.className = 'domain-name-button';
+            nameButton.textContent = item.name || 'Unnamed domain';
+            nameButton.addEventListener('click', () => openDomainDetails(item));
+            nameCell.appendChild(nameButton);
             cell(tr, item.network_address || '—');
+            cell(tr, item.version || '—');
             cell(tr, numberText(item.num_users));
             cell(tr, item.visibility || 'open');
             cell(tr, dateText(item.when_domain_entry_created));
@@ -264,6 +271,40 @@
             actionButton(actions, 'Edit', () => openEditor('domain', item));
             actionButton(actions, 'Delete', () => deleteDomain(item), true);
         });
+    }
+
+    function openDomainDetails(domain) {
+        const content = byId('domainDetailsFields');
+        content.replaceChildren();
+        const rows = [
+            ['Domain Name', domain.name || '—'],
+            ['Users', numberText(domain.num_users)],
+            ['ICE Server', domain.ice_server_address || '—'],
+            ['Domain ID', domain.domainId || domain.id || '—'],
+            ['Owner Account ID', domain.sponsor_account_id || '—'],
+            ['Protocol', domain.protocol_version || '—'],
+            ['Version', domain.version || '—']
+        ];
+        rows.forEach(([label, value]) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'domain-detail-row';
+            const term = document.createElement('dt');
+            term.textContent = label;
+            const description = document.createElement('dd');
+            description.textContent = value;
+            wrapper.append(term, description);
+            content.appendChild(wrapper);
+        });
+        const keyDetails = document.createElement('details');
+        keyDetails.className = 'domain-public-key';
+        const summary = document.createElement('summary');
+        summary.textContent = 'Public Key';
+        const key = document.createElement('pre');
+        key.textContent = domain.public_key || 'No public key registered';
+        keyDetails.append(summary, key);
+        content.appendChild(keyDetails);
+        byId('domainDetailsTitle').textContent = domain.name || 'Domain details';
+        byId('domainDetailsDialog').showModal();
     }
 
     function renderPlaces() {
@@ -711,6 +752,8 @@
             showMessage(error.message);
         }
     });
+    byId('domainDetailsClose').addEventListener('click', () => byId('domainDetailsDialog').close());
+    byId('domainDetailsCloseBottom').addEventListener('click', () => byId('domainDetailsDialog').close());
     byId('recordForm').addEventListener('submit', saveEditor);
     byId('recordCancel').addEventListener('click', () => byId('recordDialog').close());
     byId('recordCancelBottom').addEventListener('click', () => byId('recordDialog').close());

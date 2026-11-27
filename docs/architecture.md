@@ -23,7 +23,7 @@ The ICE implementation must interoperate with unmodified Overte Domain Servers a
 The current design target is the same numeric port for two different transports:
 
 - UDP 7337: Overte ICE protocol.
-- TCP 7337: HTTPS control API for Directory Service enrollment and synchronization.
+- TCP 443: HTTPS control API for Directory Service enrollment and synchronization.
 
 TCP and UDP port numbers are separate namespaces and can be bound simultaneously. Both router forwarding rules and host firewall rules must be configured independently.
 

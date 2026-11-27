@@ -49,6 +49,11 @@
         <p class="admin-link" id="admin-link" hidden><a href="../dashboard/">Open server administration</a></p>
         <footer>MetaStar Directory Server · Account dashboard</footer>
     </main>
+    <dialog id="domain-details-dialog" class="domain-details-dialog">
+        <div class="domain-details-dialog-heading"><h2 id="domain-details-title">Domain details</h2><button type="button" id="domain-details-close" aria-label="Close">×</button></div>
+        <dl id="domain-details-fields" class="domain-details-panel"></dl>
+        <div class="domain-details-dialog-actions"><button type="button" id="domain-details-close-bottom">Close</button></div>
+    </dialog>
     <script src="account.js" defer></script>
 </body>
 </html>

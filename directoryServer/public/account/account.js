@@ -51,6 +51,37 @@
         return element;
     }
 
+    function openDomainDetails(domain) {
+        const dialog = document.getElementById('domain-details-dialog');
+        const title = document.getElementById('domain-details-title');
+        const content = document.getElementById('domain-details-fields');
+        title.textContent = domain.name || 'Domain details';
+        content.textContent = '';
+        const rows = [
+            ['Domain Name', domain.name || '—'],
+            ['Users', String(domain.num_users ?? 0)],
+            ['ICE Server', domain.ice_server_address || '—'],
+            ['Domain ID', domain.domainId || domain.id || '—'],
+            ['Owner Account ID', domain.sponsor_account_id || '—'],
+            ['Protocol', domain.protocol_version || '—'],
+            ['Version', domain.version || '—']
+        ];
+        rows.forEach(([label, value]) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'domain-detail-row';
+            wrapper.append(makeText('dt', '', label), makeText('dd', '', value));
+            content.appendChild(wrapper);
+        });
+        const keyDetails = document.createElement('details');
+        keyDetails.className = 'domain-public-key';
+        keyDetails.appendChild(makeText('summary', '', 'Public Key'));
+        const key = document.createElement('pre');
+        key.textContent = domain.public_key || 'No public key registered';
+        keyDetails.appendChild(key);
+        content.appendChild(keyDetails);
+        dialog.showModal();
+    }
+
     async function loadDomains() {
         const data = await request('../api/v1/user/domains');
         const container = document.getElementById('domains');
@@ -65,7 +96,10 @@
             card.className = 'domain-card';
             const heading = document.createElement('div');
             heading.className = 'domain-heading';
-            heading.appendChild(makeText('strong', '', domain.name || 'Unnamed domain'));
+            const openDetails = makeText('button', 'domain-open-button', domain.name || 'Unnamed domain');
+            openDetails.type = 'button';
+            openDetails.addEventListener('click', () => openDomainDetails(domain));
+            heading.appendChild(openDetails);
             const hasHeartbeat = !!domain.time_of_last_heartbeat;
             const isOnline = domain.active === true;
             const stateClass = isOnline ? 'state online' : (hasHeartbeat ? 'state offline' : 'state awaiting');
@@ -75,6 +109,7 @@
             const details = document.createElement('dl');
             details.className = 'domain-details';
             const rows = [
+                ['Version', domain.version || '—'],
                 ['Domain ID', domain.domainId || domain.id || '—'],
                 ['Network address', [domain.network_address || '', domain.network_port || ''].filter(Boolean).join(':') || 'Not configured'],
                 ['Last heartbeat', formatDate(domain.time_of_last_heartbeat)]
@@ -212,6 +247,9 @@
         loadDomains().catch(() => {});
         loadPlaces().catch(() => {});
     }, 30000);
+
+    document.getElementById('domain-details-close').addEventListener('click', () => document.getElementById('domain-details-dialog').close());
+    document.getElementById('domain-details-close-bottom').addEventListener('click', () => document.getElementById('domain-details-dialog').close());
 
     document.getElementById('sign-out').addEventListener('click', () => {
         [TOKEN_KEY, 'overteAccountUser', 'overteAccountId', 'overteAccountRoles',
