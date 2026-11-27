@@ -19,6 +19,14 @@ $router->add('GET', '/api/v1/metaverse_info', static function (array $params, Js
     metaverseInfo($config);
 });
 
+$router->add('GET', '/api/v1/ice-server', static function (array $params, JsonStore $store, Auth $auth, array $config): never {
+    $iceUrl = DomainService::effectiveIceServerUrl($config);
+    if (!DomainService::isValidHttpUrl($iceUrl)) {
+        Http::failure('ICE server URL is not configured or is not a valid HTTP(S) URL', 503);
+    }
+    Http::success(['ice_server_url' => $iceUrl]);
+});
+
 $router->add('POST', '/oauth/token', static function (array $params, JsonStore $store, Auth $auth, array $config): never {
     $body = Http::body();
     $grant = (string)($body['grant_type'] ?? '');
@@ -559,18 +567,11 @@ function tokenInfo(array $token): array
 
 function metaverseInfo(array $config): never
 {
-    $baseUrl = trim((string)$config['metaverse_server_url']);
-    if ($baseUrl === '') {
-        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $baseUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
-    }
-    $configuredIceUrl = trim((string)$config['default_ice_server_url']);
-    $iceUrl = $configuredIceUrl;
-    $iceUrlSource = 'default_ice_server_url';
-    if ($iceUrl === '') {
-        $iceUrl = $baseUrl;
-        $iceUrlSource = 'metaverse_server_url_fallback';
-    }
+    $baseUrl = DomainService::metaverseBaseUrl($config);
+    $iceUrl = DomainService::effectiveIceServerUrl($config);
+    $iceUrlSource = trim((string)($config['default_ice_server_url'] ?? '')) !== ''
+        ? 'default_ice_server_url'
+        : 'metaverse_server_url_fallback';
 
     Logger::debug($config, 'metaverse_info.ice_server_url', [
         'metaverse_url' => rtrim($baseUrl, '/'),
