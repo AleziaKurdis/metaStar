@@ -422,6 +422,7 @@ See [docs/ice-registration.md](../docs/ice-registration.md) for configuration, f
 - Run `php bin/scheduler.php` from cron (for example, every minute) to process queued tasks and retry temporary failures. The existing `php bin/ice-sync.php sync` command remains available for manual synchronization.
 - TLS verification is mandatory. The ICE certificate must be explicitly trusted; the integration never disables certificate checks.
 - `default_ice_server_url` remains the separate client-advertised ICE address.
+- `GET /api/v1/ice-server` publicly returns the effective client-advertised ICE URL for Domain Server discovery; it does not expose the separate `ice_control_url` or any enrollment credentials.
 
 Run the new test with assertions enabled:
 
