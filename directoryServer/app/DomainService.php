@@ -70,6 +70,34 @@ final class DomainService
         return preg_match('/^(?:0\\.0\\.0\\.0|::)(?::[0-9]{1,5})?$/i', $address) !== 1;
     }
 
+    /** Return the public Directory Server base URL, preserving the legacy request-host fallback. */
+    public static function metaverseBaseUrl(array $config): string
+    {
+        $baseUrl = trim((string)($config['metaverse_server_url'] ?? ''));
+        if ($baseUrl === '') {
+            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $baseUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+        }
+        return $baseUrl;
+    }
+
+    /** Return the same effective public ICE URL used by the metaverse-info response. */
+    public static function effectiveIceServerUrl(array $config): string
+    {
+        $configured = trim((string)($config['default_ice_server_url'] ?? ''));
+        return $configured !== '' ? $configured : self::metaverseBaseUrl($config);
+    }
+
+    public static function isValidHttpUrl(string $url): bool
+    {
+        $url = trim($url);
+        $parts = parse_url($url);
+        return is_array($parts)
+            && in_array(strtolower((string)($parts['scheme'] ?? '')), ['http', 'https'], true)
+            && !empty($parts['host'])
+            && filter_var($url, FILTER_VALIDATE_URL) !== false;
+    }
+
     public static function info(array $domain, JsonStore $store, array $config, bool $v1 = true): array
     {
         $created = isset($domain['whenCreated']) ? strtotime((string)$domain['whenCreated']) : false;
