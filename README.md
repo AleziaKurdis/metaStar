@@ -34,7 +34,7 @@ metaStar/
 ### ICE Server
 
 - Go toolchain for development and tests
-- Linux x86_64 release binary for the current VIRZ target
+- Linux x86_64 host for deployment and runtime testing
 - Runtime installation should not require Go or a compiler
 
 See `iceServer/README.md` for the current prototype's actual capabilities and limitations.
