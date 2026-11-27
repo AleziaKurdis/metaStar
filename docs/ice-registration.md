@@ -23,6 +23,32 @@ Forward TCP 443 and UDP 7337 from the router to the ICE host. TCP 443 is the HTT
 
 For certificate installation and renewal, see the [ICE TLS certificate guide](../iceServer/docs/tls-certificates.md).
 
+## Public ICE address discovery
+
+The Directory Server exposes the public ICE address for Domain Server discovery:
+
+```http
+GET /api/v1/ice-server
+```
+
+The endpoint is public and does not require an access token. It returns the same effective address as the existing metaverse-info response:
+
+```json
+{
+  "status": "success",
+  "data": {
+    "ice_server_url": "https://ice.example.org"
+  }
+}
+```
+
+The value comes from `default_ice_server_url`. If that setting is empty, the Directory Server preserves the existing metaverse-info fallback to `metaverse_server_url`, then to the request host when no public base URL is configured. The endpoint rejects a missing or invalid HTTP(S) URL with HTTP 503.
+
+This is the public ICE address used by Overte Domain Servers and clients. It is **not** `ice_control_url`, which is the separate HTTPS control API used by the Directory Server to enroll and synchronize domains. Never expose the ICE enrollment secret or per-directory registration token through this endpoint.
+
+The existing `/server` compatibility prefix is also supported, so deployments using the Domain Server's conventional URL layout can request `/server/api/v1/ice-server`.
+
+
 ## First-time enrollment
 
 Set the bootstrap secret only in the shell environment and enroll once:
