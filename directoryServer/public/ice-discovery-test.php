@@ -1,10 +1,10 @@
 <?php
 declare(strict_types=1);
 
-require dirname(__DIR__) . '/app/bootstrap.php';
-
 use OvertePHP\Auth;
 use OvertePHP\JsonStore;
+
+require_once dirname(__DIR__) . '/app/bootstrap.php';
 
 $config = require dirname(__DIR__) . '/config/config.php';
 $store = new JsonStore($config['storage_path']);
@@ -13,7 +13,22 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store');
 
-    $authorization = trim((string)($_SERVER['HTTP_AUTHORIZATION'] ?? ''));
+    $authorization = '';
+    foreach (['HTTP_AUTHORIZATION', 'REDIRECT_HTTP_AUTHORIZATION', 'AUTHORIZATION'] as $key) {
+        $candidate = trim((string)($_SERVER[$key] ?? ''));
+        if ($candidate !== '') {
+            $authorization = $candidate;
+            break;
+        }
+    }
+    if ($authorization === '' && function_exists('getallheaders')) {
+        foreach ((array)getallheaders() as $name => $value) {
+            if (strcasecmp((string)$name, 'Authorization') === 0) {
+                $authorization = trim((string)$value);
+                break;
+            }
+        }
+    }
     if (!preg_match('/^Bearer\s+(.+)$/i', $authorization, $matches)) {
         http_response_code(401);
         echo json_encode(['status' => 'failure', 'error' => 'Administrator sign-in is required.']);
