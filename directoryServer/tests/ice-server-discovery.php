@@ -40,4 +40,4 @@ assert(!DomainService::isValidHttpUrl(''));
 assert(!DomainService::isValidHttpUrl('ice.example.org'));
 assert(!DomainService::isValidHttpUrl('ftp://ice.example.org'));
 
-echo "ICE server discovery tests passed.\\n";
+echo "ICE server discovery tests passed.\n";
