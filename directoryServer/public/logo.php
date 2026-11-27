@@ -9,5 +9,6 @@ if (!is_file($logo) || !is_readable($logo)) {
 }
 header('Content-Type: image/svg+xml; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
+header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox");
 header('Cache-Control: no-cache, must-revalidate');
 readfile($logo);
