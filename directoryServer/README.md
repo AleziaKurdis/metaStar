@@ -1,4 +1,4 @@
-# Overte Directory Server — PHP rewrite (Milestone 25 public ICE discovery)
+# MetaStar Directory Server — PHP implementation (Milestone 25 public ICE discovery)
 
 **Milestone 25: Public ICE server discovery.** Adds the unauthenticated `GET /api/v1/ice-server` endpoint so an Overte Domain Server can discover the public ICE address from its configured Directory Server. The endpoint reuses `default_ice_server_url` and the existing metaverse-info fallback; it does not expose the separate ICE control URL or enrollment credentials.
 
