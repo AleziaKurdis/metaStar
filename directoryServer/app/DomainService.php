@@ -95,6 +95,8 @@ final class DomainService
         return is_array($parts)
             && in_array(strtolower((string)($parts['scheme'] ?? '')), ['http', 'https'], true)
             && !empty($parts['host'])
+            && !isset($parts['user'])
+            && !isset($parts['pass'])
             && filter_var($url, FILTER_VALIDATE_URL) !== false;
     }
 
