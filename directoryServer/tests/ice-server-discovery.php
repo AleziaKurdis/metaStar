@@ -39,5 +39,6 @@ if ($previousHost === null) unset($_SERVER['HTTP_HOST']); else $_SERVER['HTTP_HO
 assert(!DomainService::isValidHttpUrl(''));
 assert(!DomainService::isValidHttpUrl('ice.example.org'));
 assert(!DomainService::isValidHttpUrl('ftp://ice.example.org'));
+assert(!DomainService::isValidHttpUrl('https://user:secret@ice.example.org'));
 
 echo "ICE server discovery tests passed.\n";
