@@ -88,3 +88,12 @@ The worker processes pending tasks only. It is safe to invoke every minute; it e
 - It does not change the ICE address advertised to Overte; configure `default_ice_server_url` separately to the correct public ICE address.
 - If the ICE endpoint or certificate changes, update `ice_control_url` and `ice_control_ca_file` before running sync.
 - Never delete `data/ice-registration.json` casually. Re-enrollment with the same directory ID is intentionally rejected by the ICE service; token recovery/rotation is a separate administrative operation.
+
+
+## Discovery endpoint test
+
+From the `directoryServer/` directory, run:
+
+```sh
+php -d zend.assertions=1 -d assert.exception=1 tests/ice-server-discovery.php
+```
