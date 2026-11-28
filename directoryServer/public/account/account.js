@@ -162,6 +162,75 @@
         });
     }
 
+    function placeThumbnail(value, className = 'place-thumbnail') {
+        const image = document.createElement('img');
+        image.className = className;
+        image.alt = '';
+        image.loading = 'lazy';
+        if (value && /^(https?:|\/|data:image\/)/i.test(String(value))) {
+            image.src = String(value);
+            image.addEventListener('error', () => { image.hidden = true; });
+        } else {
+            image.hidden = true;
+        }
+        return image;
+    }
+
+    function openPlaceDetails(place) {
+        const content = document.getElementById('place-details-fields');
+        content.replaceChildren();
+        const header = document.createElement('div');
+        header.className = 'place-detail-header';
+        header.appendChild(placeThumbnail(place.thumbnail, 'place-detail-thumbnail'));
+        const title = document.createElement('div');
+        title.className = 'place-detail-title';
+        title.append(makeText('h3', '', place.displayName || place.name || 'Unnamed place'));
+        title.append(makeText('strong', '', Number(place.current_attendance || 0).toLocaleString() + ' users'));
+        header.appendChild(title);
+        content.appendChild(header);
+        [
+            ['Description', place.description || '—'],
+            ['Tags', Array.isArray(place.tags) && place.tags.length ? place.tags.join(', ') : 'No tags found.'],
+            ['Maturity', place.maturity || 'unrated'],
+            ['Address', place.address || place.path || '—']
+        ].forEach(([label, value]) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'place-detail-row';
+            wrapper.append(makeText('dt', '', label), makeText('dd', '', value));
+            content.appendChild(wrapper);
+        });
+        const domainDetails = document.createElement('details');
+        domainDetails.className = 'place-domain-details';
+        domainDetails.appendChild(makeText('summary', '', 'Domain'));
+        const domain = place.domain || {};
+        [
+            ['Domain ID', domain.domainId || domain.id || '—'],
+            ['Domain Name', domain.name || '—'],
+            ['Domain Network Address', [domain.network_address || '', domain.network_port || ''].filter(Boolean).join(':') || '—'],
+            ['Domain ICE Server', domain.ice_server_address || '—'],
+            ['Domain Last Checked In', domain.time_of_last_heartbeat || '—']
+        ].forEach(([label, value]) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'place-domain-row';
+            wrapper.append(makeText('dt', '', label), makeText('dd', '', value));
+            domainDetails.appendChild(wrapper);
+        });
+        content.appendChild(domainDetails);
+        document.getElementById('place-details-title').textContent = place.displayName || place.name || 'Place details';
+        document.getElementById('place-details-dialog').showModal();
+    }
+
+    async function deletePlace(place) {
+        if (!window.confirm('Permanently delete place "' + (place.name || place.displayName || 'Unnamed place') + '" and its place access token?')) return;
+        try {
+            await request('../api/v1/user/places/' + encodeURIComponent(place.id || place.placeId), { method: 'DELETE' });
+            await loadPlaces();
+            setStatus('Place deleted.');
+        } catch (error) {
+            setStatus(error.message, 'error');
+        }
+    }
+
     async function loadPlaces() {
         const data = await request('../api/v1/user/places');
         const container = document.getElementById('places');
@@ -173,9 +242,19 @@
         }
         places.forEach((place) => {
             const item = document.createElement('article');
-            item.className = 'place';
-            item.append(makeText('strong', '', place.displayName || place.name || 'Unnamed place'));
-            item.append(makeText('span', '', [place.name, place.path || place.address || ''].filter(Boolean).join(' · ')));
+            item.className = 'place place-list-item';
+            item.appendChild(placeThumbnail(place.thumbnail));
+            const name = makeText('button', 'place-name-button', place.displayName || place.name || 'Unnamed place');
+            name.type = 'button';
+            name.addEventListener('click', () => openPlaceDetails(place));
+            item.appendChild(name);
+            item.appendChild(makeText('span', 'place-list-meta', (place.maturity || 'unrated') + ' · ' + (place.domain?.name || '—')));
+            const actions = makeText('div', 'place-list-actions', '');
+            const remove = makeText('button', 'danger-button', 'Delete');
+            remove.type = 'button';
+            remove.addEventListener('click', () => deletePlace(place));
+            actions.appendChild(remove);
+            item.appendChild(actions);
             container.appendChild(item);
         });
     }
@@ -248,6 +327,8 @@
         loadPlaces().catch(() => {});
     }, 30000);
 
+    document.getElementById('place-details-close').addEventListener('click', () => document.getElementById('place-details-dialog').close());
+    document.getElementById('place-details-close-bottom').addEventListener('click', () => document.getElementById('place-details-dialog').close());
     document.getElementById('domain-details-close').addEventListener('click', () => document.getElementById('domain-details-dialog').close());
     document.getElementById('domain-details-close-bottom').addEventListener('click', () => document.getElementById('domain-details-dialog').close());
 
