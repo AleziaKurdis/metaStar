@@ -50,3 +50,5 @@
 .place-details-dialog{width:min(620px,calc(100% - 32px));max-height:min(85vh,760px);overflow:auto}
 .place-details-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
 @media(max-width:460px){.place-list-item{grid-template-columns:42px minmax(0,1fr)}.place-list-actions{grid-column:2;grid-row:auto}.place-list-meta{grid-column:2}.place-thumbnail{width:42px;height:42px}}
+
+.domain-card>.danger-button{margin-top:12px}
