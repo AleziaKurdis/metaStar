@@ -73,8 +73,19 @@ $router->add('GET', '/api/v1/admin/places', static function (array $params, Json
     $total = count($places);
     $places = array_slice($places, ($page - 1) * $perPage, $perPage);
     $GLOBALS['overte_php_config'] = $config;
+    $accountsById = [];
+    foreach ($store->all('accounts') as $account) {
+        $accountsById[(string)($account['id'] ?? '')] = (string)($account['username'] ?? '');
+    }
+    $placeInfo = array_map(static function (array $place) use ($store, $accountsById): array {
+        $info = PlaceService::info($store, $place);
+        $domain = PlaceService::domainFor($store, $place);
+        $sponsorId = (string)($domain['sponsorAccountId'] ?? $place['sponsorAccountId'] ?? '');
+        $info['user_name'] = $accountsById[$sponsorId] ?? '—';
+        return $info;
+    }, $places);
     Http::success([
-        'places' => array_map(static fn(array $place): array => PlaceService::info($store, $place), $places),
+        'places' => $placeInfo,
         'current_page' => $page,
         'per_page' => $perPage,
         'total_pages' => max(1, (int)ceil($total / $perPage)),
