@@ -282,7 +282,6 @@
             cell(tr, dateText(item.when_domain_entry_created));
             const actions = tr.insertCell();
             actions.className = 'actions-cell';
-            actionButton(actions, 'Edit', () => openEditor('domain', item));
             actionButton(actions, 'Delete', () => deleteDomain(item), true);
         });
     }
@@ -820,7 +819,6 @@
             runIceAction('disconnect', 'iceDisconnectButton', 'Directory Server disconnected from ICE.');
         }
     });
-    byId('createDomainButton').addEventListener('click', () => openEditor('create-domain', {}));
     byId('createPlaceButton').addEventListener('click', async () => {
         try {
             if (!cache.domains.length) await loadDomains();
