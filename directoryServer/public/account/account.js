@@ -106,6 +106,9 @@
             const stateLabel = isOnline ? 'Online' : (hasHeartbeat ? 'Offline' : 'Awaiting first heartbeat');
             heading.appendChild(makeText('span', stateClass, stateLabel));
             card.appendChild(heading);
+            const remove = makeText('button', 'danger-button', 'Delete');
+            remove.type = 'button';
+            remove.addEventListener('click', () => deleteDomain(domain));
             const details = document.createElement('dl');
             details.className = 'domain-details';
             const rows = [
@@ -120,8 +123,21 @@
                 details.appendChild(wrapper);
             });
             card.appendChild(details);
+            card.appendChild(remove);
             container.appendChild(card);
         });
+    }
+
+    async function deleteDomain(domain) {
+        const name = domain.name || 'Unnamed domain';
+        if (!window.confirm('Delete domain "' + name + '"? This removes its directory registration. Its registered places may remain in the directory without an associated domain.')) return;
+        try {
+            await request('../api/v1/domains/' + encodeURIComponent(domain.domainId || domain.id), { method: 'DELETE' });
+            await loadDomains();
+            setStatus('Domain deleted.');
+        } catch (error) {
+            setStatus(error.message, 'error');
+        }
     }
 
     async function loadTokens() {
