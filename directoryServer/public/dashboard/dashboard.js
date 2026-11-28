@@ -826,6 +826,8 @@
             showMessage(error.message);
         }
     });
+    byId('placeDetailsClose').addEventListener('click', () => byId('placeDetailsDialog').close());
+    byId('placeDetailsCloseBottom').addEventListener('click', () => byId('placeDetailsDialog').close());
     byId('domainDetailsClose').addEventListener('click', () => byId('domainDetailsDialog').close());
     byId('domainDetailsCloseBottom').addEventListener('click', () => byId('domainDetailsDialog').close());
     byId('recordForm').addEventListener('submit', saveEditor);
