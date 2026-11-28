@@ -214,6 +214,16 @@
         parent.appendChild(span);
     }
 
+    function placeThumbnail(value, className = 'place-thumbnail') {
+        const image = document.createElement('img');
+        image.className = className;
+        image.alt = '';
+        image.loading = 'lazy';
+        image.src = value && /^(https?:|\/|data:image\/)/i.test(String(value)) ? String(value) : '../images/place-placeholder.png';
+        image.addEventListener('error', () => { image.hidden = true; });
+        return image;
+    }
+
     function actionButton(parent, label, callback, danger = false) {
         const button = document.createElement('button');
         button.type = 'button';
@@ -311,20 +321,84 @@
         const body = byId('placesBody');
         body.replaceChildren();
         const query = byId('placeSearch').value.trim().toLowerCase();
-        const rows = cache.places.filter(item => [item.name, item.domain?.name].some(value => String(value || '').toLowerCase().includes(query)));
+        const rows = cache.places.filter(item => [item.name, item.domain?.name, item.user_name].some(value => String(value || '').toLowerCase().includes(query)));
         if (!rows.length) { const tr = body.insertRow(); const td = tr.insertCell(); td.colSpan = 6; td.className = 'empty'; td.textContent = 'No matching places.'; return; }
         rows.forEach(item => {
             const tr = body.insertRow();
-            cell(tr, item.name);
+            const thumb = tr.insertCell();
+            thumb.appendChild(placeThumbnail(item.thumbnail));
+            const name = tr.insertCell();
+            const link = document.createElement('button');
+            link.type = 'button';
+            link.className = 'place-name-button';
+            link.textContent = item.displayName || item.name || 'Unnamed place';
+            link.addEventListener('click', () => openPlaceDetails(item));
+            name.appendChild(link);
+            cell(tr, item.maturity || 'unrated');
             cell(tr, item.domain?.name || '—');
-            cell(tr, numberText(item.current_attendance));
-            cell(tr, item.visibility || 'open');
-            cell(tr, dateText(item.when_place_entry_created));
+            cell(tr, item.user_name || '—');
             const actions = tr.insertCell();
             actions.className = 'actions-cell';
-            actionButton(actions, 'Edit', () => openEditor('place', item));
             actionButton(actions, 'Delete', () => deletePlace(item), true);
         });
+    }
+
+    function openPlaceDetails(place) {
+        const content = byId('placeDetailsFields');
+        content.replaceChildren();
+        const header = document.createElement('div');
+        header.className = 'place-detail-header';
+        header.appendChild(placeThumbnail(place.thumbnail, 'place-detail-thumbnail'));
+        const title = document.createElement('div');
+        title.className = 'place-detail-title';
+        const name = document.createElement('h3');
+        name.textContent = place.displayName || place.name || 'Unnamed place';
+        const users = document.createElement('strong');
+        users.textContent = numberText(place.current_attendance) + ' users';
+        title.append(name, users);
+        header.appendChild(title);
+        content.appendChild(header);
+        const rows = [
+            ['Description', place.description || '—'],
+            ['Tags', Array.isArray(place.tags) && place.tags.length ? place.tags.join(', ') : 'No tags found.'],
+            ['Maturity', place.maturity || 'unrated'],
+            ['Address', place.address || place.path || '—']
+        ];
+        rows.forEach(([label, value]) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'place-detail-row';
+            const term = document.createElement('dt');
+            term.textContent = label;
+            const description = document.createElement('dd');
+            description.textContent = value;
+            wrapper.append(term, description);
+            content.appendChild(wrapper);
+        });
+        const domainDetails = document.createElement('details');
+        domainDetails.className = 'place-domain-details';
+        const summary = document.createElement('summary');
+        summary.textContent = 'Domain';
+        domainDetails.appendChild(summary);
+        const domain = place.domain || {};
+        [
+            ['Domain ID', domain.domainId || domain.id || '—'],
+            ['Domain Name', domain.name || '—'],
+            ['Domain Network Address', [domain.network_address || '', domain.network_port || ''].filter(Boolean).join(':') || '—'],
+            ['Domain ICE Server', domain.ice_server_address || '—'],
+            ['Domain Last Checked In', domain.time_of_last_heartbeat || '—']
+        ].forEach(([label, value]) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'place-domain-row';
+            const term = document.createElement('dt');
+            term.textContent = label;
+            const description = document.createElement('dd');
+            description.textContent = value;
+            wrapper.append(term, description);
+            domainDetails.appendChild(wrapper);
+        });
+        content.appendChild(domainDetails);
+        byId('placeDetailsTitle').textContent = place.displayName || place.name || 'Place details';
+        byId('placeDetailsDialog').showModal();
     }
 
     function field(label, key, value, type = 'text', options = null, disabled = false, note = '') {
