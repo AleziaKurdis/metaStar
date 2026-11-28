@@ -3,9 +3,8 @@ Copyright Alezia Kurdis, 2026.
 SPDX-License-Identifier: Apache-2.0
 -->
 <p align="center">
-<picture><source srcset="docs/images/logo-metaStar-white.svg" alt="metaStar" width="300" media="(prefers-color-scheme: dark)">
-<img src="docs/images/logo-metaStar-black.svg" alt="metaStar" width="300">
-</picture>
+<img src="docs/images/logo-metaStar-white.svg#gh-dark-mode-only" alt="metaStar" width="300">
+<img src="docs/images/logo-metaStar-black.svg#gh-light-mode-only" alt="metaStar" width="300">
 </p>
 
 # metaStar
