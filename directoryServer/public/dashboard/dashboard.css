@@ -44,3 +44,5 @@
 .place-domain-details{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:7px}
 .place-domain-details summary{color:var(--accent);cursor:pointer;font-weight:600}
 .place-domain-row:last-child{border-bottom:0}
+
+.place-details-dialog{padding:22px}
