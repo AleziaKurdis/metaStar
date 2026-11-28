@@ -219,8 +219,12 @@
         image.className = className;
         image.alt = '';
         image.loading = 'lazy';
-        image.src = value && /^(https?:|\/|data:image\/)/i.test(String(value)) ? String(value) : '../images/place-placeholder.png';
-        image.addEventListener('error', () => { image.hidden = true; });
+        if (value && /^(https?:|\/|data:image\/)/i.test(String(value))) {
+            image.src = String(value);
+            image.addEventListener('error', () => { image.hidden = true; });
+        } else {
+            image.hidden = true;
+        }
         return image;
     }
 
