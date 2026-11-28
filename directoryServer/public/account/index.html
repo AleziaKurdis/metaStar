@@ -43,12 +43,17 @@
             <p id="token-management-message" class="inline-message" role="status" aria-live="polite" hidden></p>
         </section>
         <section class="panel">
-            <div class="panel-heading"><div><h2>My places</h2><p>Places hosted by domains sponsored by your account</p></div></div>
+            <div class="panel-heading"><div><h2>My places</h2><p>Places hosted by domains sponsored by your account</p></div><button id="add-place" type="button" disabled title="Place creation will be added in the next update">Add place</button></div>
             <div id="places" class="places"><p class="muted">Loading places…</p></div>
         </section>
         <p class="admin-link" id="admin-link" hidden><a href="../dashboard/">Open server administration</a></p>
         <footer>MetaStar Directory Server · Account dashboard</footer>
     </main>
+    <dialog id="place-details-dialog" class="domain-details-dialog place-details-dialog">
+        <div class="domain-details-dialog-heading"><h2 id="place-details-title">Place details</h2><button type="button" id="place-details-close" aria-label="Close">×</button></div>
+        <div id="place-details-fields" class="place-details-panel"></div>
+        <div class="domain-details-dialog-actions"><button type="button" id="place-details-edit" disabled title="Place editing will be added in the next update">Edit</button><button type="button" id="place-details-close-bottom">Close</button></div>
+    </dialog>
     <dialog id="domain-details-dialog" class="domain-details-dialog">
         <div class="domain-details-dialog-heading"><h2 id="domain-details-title">Domain details</h2><button type="button" id="domain-details-close" aria-label="Close">×</button></div>
         <dl id="domain-details-fields" class="domain-details-panel"></dl>
