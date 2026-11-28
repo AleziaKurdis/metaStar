@@ -437,7 +437,7 @@ php -d zend.assertions=1 -d assert.exception=1 tests/ice-server-discovery.php
 
 ## Customizing the Directory Server logo
 
-Replace `directoryServer/logo.svg` with your own SVG logo. The application serves this file through `public/logo.php`, so the same customization works whether the project root or the `public/` folder is configured as the web document root. The displayed logo area uses a 2:1 aspect ratio; the subtitle below it is shared across the login, registration, account, setup, and administration pages.
+Replace `directoryServer/logo.png` with your own PNG logo. The application serves this file through `public/logo.php`, so the same customization works whether the project root or the `public/` folder is configured as the web document root. PNG supports photographic and raster artwork as well as transparent logos. The displayed logo area uses a 2:1 aspect ratio; the subtitle below it is shared across the login, registration, account, setup, and administration pages.
 
 ## Browser-based ICE discovery checks
 
